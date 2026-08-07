@@ -44,7 +44,6 @@ public sealed class MediaFlowWorker : BackgroundService
         {
             var config = Plugin.Instance?.Configuration;
             var delay = Math.Clamp(config?.PollIntervalSeconds ?? 10, 3, 300);
-
             try
             {
                 if (config?.Enabled == true)
@@ -71,13 +70,18 @@ public sealed class MediaFlowWorker : BackgroundService
         var config = Plugin.Instance!.Configuration;
         var torrents = await _qbittorrent.GetTorrentsAsync(cancellationToken).ConfigureAwait(false);
         var importedAny = false;
-
         foreach (var torrent in torrents)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var categoryKind = GetCategoryKind(torrent.Category, config);
+            if (categoryKind == MediaKind.Unknown)
+            {
+                continue;
+            }
+
             var files = await _qbittorrent.GetFilesAsync(torrent.Hash, cancellationToken).ConfigureAwait(false);
 
-            if (config.ManageSequentialEpisodes)
+            if (config.ManageSequentialEpisodes && categoryKind == MediaKind.Episode)
             {
                 await ApplyStrictEpisodeSequenceAsync(torrent, files, cancellationToken).ConfigureAwait(false);
             }
@@ -114,6 +118,7 @@ public sealed class MediaFlowWorker : BackgroundService
                     }
 
                     var parsed = _parser.Parse(sourcePath, torrent.Name, file.Name);
+                    ApplyCategoryKind(parsed, categoryKind);
                     var resolution = await _resolver.ResolveAsync(parsed, cancellationToken).ConfigureAwait(false);
                     if (!resolution.AutoApproved || resolution.Selected is null)
                     {
@@ -132,7 +137,6 @@ public sealed class MediaFlowWorker : BackgroundService
                     var destination = ImportPlanner.BuildDestination(parsed, resolution.Selected);
                     _hardLinks.Create(sourcePath, destination);
                     importedAny = true;
-
                     await _state.SetAsync(new ImportStateEntry
                     {
                         Key = key,
@@ -142,7 +146,6 @@ public sealed class MediaFlowWorker : BackgroundService
                         TmdbId = resolution.Selected.Id,
                         Message = resolution.Reason
                     }, cancellationToken).ConfigureAwait(false);
-
                     _logger.LogInformation("Imported {Source} -> {Destination} (TMDb {TmdbId}, score {Score:F1})", sourcePath, destination, resolution.Selected.Id, resolution.Selected.Score);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
@@ -176,7 +179,6 @@ public sealed class MediaFlowWorker : BackgroundService
             .OrderBy(x => x.Season)
             .ThenBy(x => x.Episode)
             .ToList();
-
         if (episodes.Count < 2)
         {
             return;
@@ -219,11 +221,58 @@ public sealed class MediaFlowWorker : BackgroundService
         return value.Contains("sample", StringComparison.Ordinal) || value.Contains("trailer", StringComparison.Ordinal);
     }
 
+    private static MediaKind GetCategoryKind(string category, Configuration.PluginConfiguration config)
+    {
+        if (!string.IsNullOrWhiteSpace(config.QbittorrentMovieCategory)
+            && string.Equals(category, config.QbittorrentMovieCategory.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return MediaKind.Movie;
+        }
+
+        if (!string.IsNullOrWhiteSpace(config.QbittorrentTvCategory)
+            && string.Equals(category, config.QbittorrentTvCategory.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return MediaKind.Episode;
+        }
+
+        return MediaKind.Unknown;
+    }
+
+    private static void ApplyCategoryKind(ParsedMedia parsed, MediaKind categoryKind)
+    {
+        if (categoryKind == MediaKind.Movie)
+        {
+            parsed.Kind = MediaKind.Movie;
+            parsed.Season = null;
+            parsed.Episode = null;
+            return;
+        }
+
+        if (categoryKind == MediaKind.Episode)
+        {
+            parsed.Kind = parsed.Season.HasValue && parsed.Episode.HasValue
+                ? MediaKind.Episode
+                : MediaKind.Unknown;
+        }
+    }
+
     private static void ValidateConfiguration(Configuration.PluginConfiguration config)
     {
         if (string.IsNullOrWhiteSpace(config.QbittorrentUrl))
         {
             throw new InvalidOperationException("qBittorrent URL is not configured.");
+        }
+
+        if (string.IsNullOrWhiteSpace(config.QbittorrentMovieCategory) && string.IsNullOrWhiteSpace(config.QbittorrentTvCategory))
+        {
+            throw new InvalidOperationException("At least one qBittorrent movie/TV category must be configured.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(config.QbittorrentMovieCategory)
+            && !string.IsNullOrWhiteSpace(config.QbittorrentTvCategory)
+            && string.Equals(config.QbittorrentMovieCategory.Trim(), config.QbittorrentTvCategory.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("qBittorrent movie and TV categories must be different.");
         }
 
         if (string.IsNullOrWhiteSpace(config.TmdbApiKey))

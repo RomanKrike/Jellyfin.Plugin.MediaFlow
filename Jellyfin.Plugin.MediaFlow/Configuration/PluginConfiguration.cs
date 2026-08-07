@@ -12,7 +12,9 @@ public sealed class PluginConfiguration : BasePluginConfiguration
 
     public string QbittorrentPassword { get; set; } = string.Empty;
 
-    public string QbittorrentCategory { get; set; } = "mediaflow";
+    public string QbittorrentMovieCategory { get; set; } = "movie";
+
+    public string QbittorrentTvCategory { get; set; } = "tv";
 
     public bool QbittorrentIgnoreTlsErrors { get; set; } = false;
 

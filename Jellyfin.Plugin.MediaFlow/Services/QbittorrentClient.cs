@@ -13,7 +13,6 @@ public sealed class QbittorrentClient : IDisposable
     private HttpClient? _client;
     private string _signature = string.Empty;
     private bool _authenticated;
-
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public QbittorrentClient(ILogger<QbittorrentClient> logger)
@@ -24,13 +23,31 @@ public sealed class QbittorrentClient : IDisposable
     public async Task<IReadOnlyList<QbTorrent>> GetTorrentsAsync(CancellationToken cancellationToken)
     {
         var config = GetConfig();
-        var category = string.IsNullOrWhiteSpace(config.QbittorrentCategory)
-            ? string.Empty
-            : "&category=" + Uri.EscapeDataString(config.QbittorrentCategory);
-
-        using var response = await SendAsync(HttpMethod.Get, $"api/v2/torrents/info?filter=all{category}", null, cancellationToken).ConfigureAwait(false);
+        using var response = await SendAsync(HttpMethod.Get, "api/v2/torrents/info?filter=all", null, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<List<QbTorrent>>(JsonOptions, cancellationToken).ConfigureAwait(false) ?? [];
+
+        var torrents = await response.Content.ReadFromJsonAsync<List<QbTorrent>>(JsonOptions, cancellationToken).ConfigureAwait(false) ?? [];
+        var allowedCategories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (!string.IsNullOrWhiteSpace(config.QbittorrentMovieCategory))
+        {
+            allowedCategories.Add(config.QbittorrentMovieCategory.Trim());
+        }
+
+        if (!string.IsNullOrWhiteSpace(config.QbittorrentTvCategory))
+        {
+            allowedCategories.Add(config.QbittorrentTvCategory.Trim());
+        }
+
+        if (allowedCategories.Count == 0)
+        {
+            _logger.LogWarning("MediaFlow has no qBittorrent movie/TV categories configured; no torrents will be processed.");
+            return [];
+        }
+
+        return torrents
+            .Where(x => allowedCategories.Contains(x.Category))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<QbTorrentFile>> GetFilesAsync(string hash, CancellationToken cancellationToken)
@@ -48,7 +65,6 @@ public sealed class QbittorrentClient : IDisposable
             ["id"] = fileIndex.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["priority"] = priority.ToString(System.Globalization.CultureInfo.InvariantCulture)
         };
-
         using var response = await SendAsync(HttpMethod.Post, "api/v2/torrents/filePrio", form, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
     }
@@ -56,7 +72,6 @@ public sealed class QbittorrentClient : IDisposable
     private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string relativeUrl, Dictionary<string, string>? form, CancellationToken cancellationToken)
     {
         await EnsureClientAndAuthAsync(cancellationToken).ConfigureAwait(false);
-
         var response = await SendCoreAsync(method, relativeUrl, form, cancellationToken).ConfigureAwait(false);
         if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized)
         {
@@ -95,7 +110,6 @@ public sealed class QbittorrentClient : IDisposable
                     CookieContainer = new CookieContainer(),
                     UseCookies = true
                 };
-
                 if (config.QbittorrentIgnoreTlsErrors)
                 {
                     handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
@@ -106,7 +120,7 @@ public sealed class QbittorrentClient : IDisposable
                     BaseAddress = new Uri(config.QbittorrentUrl.TrimEnd('/') + "/", UriKind.Absolute),
                     Timeout = TimeSpan.FromSeconds(20)
                 };
-                _client.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-MediaFlow/0.1");
+                _client.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-MediaFlow/0.1.1");
                 _signature = signature;
                 _authenticated = false;
             }
