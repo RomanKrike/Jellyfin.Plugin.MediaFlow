@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.2.0",
+        "changelog": "Added safe Dry Run mode, baseline protection for existing torrents, and improved Rutracker-style media parsing.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow/releases/download/v0.1.2/Jellyfin.Plugin.MediaFlow.v.0.1.2.zip",
+        "checksum": "B4AC441674896ADFE3A2C35F4C432916",
+        "timestamp": "2026-08-07T21:47:05Z"
+      },
+      {
         "version": "0.1.1.0",
         "changelog": "Added separate qBittorrent categories for movies and TV. Sequential downloading now applies only to TV torrents.",
         "targetAbi": "10.11.0.0",
