@@ -42,7 +42,7 @@ public sealed class MediaFlowWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("MediaFlow worker started.");
+        _logger.LogWarning("MediaFlow worker started. Background polling service is active.");
 
         while (!stoppingToken.IsCancellationRequested)
         {

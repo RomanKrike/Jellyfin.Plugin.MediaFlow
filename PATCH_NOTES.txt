@@ -1,0 +1,21 @@
+MediaFlow v0.1.3 update
+
+Files:
+- Directory.Build.props: bumps plugin assembly/package version to 0.1.3 / 0.1.3.0.
+- Jellyfin.Plugin.MediaFlow/Tasks/MediaFlowDryRunTask.cs: adds a Jellyfin IScheduledTask named "MediaFlow: Dry Run".
+- Jellyfin.Plugin.MediaFlow/Services/MediaFlowWorker.cs: raises the worker-start diagnostic from Information to Warning.
+
+Safety properties of the manual task:
+- manual-only: GetDefaultTriggers() returns no automatic triggers;
+- ignores Enabled and DryRunMode and is intrinsically read-only;
+- no HardLinkService dependency;
+- no ImportStateStore dependency;
+- no ILibraryManager dependency;
+- no qBittorrent priority mutation calls;
+- only reads torrent/file info, maps/checks source paths, runs parser + TMDb resolver, and logs the planned destination.
+
+Expected test flow after installing v0.1.3:
+1. Keep the MediaFlow background worker disabled during parser tests.
+2. Set DryRunTorrentFilter to a unique fragment, e.g. Stranger.Things.S03.
+3. Dashboard -> Scheduled Tasks -> MediaFlow -> MediaFlow: Dry Run -> Run now.
+4. Inspect Jellyfin log for "MediaFlow DRY RUN START", "MediaFlow DRY RUN FILE", and "MediaFlow DRY RUN END".
