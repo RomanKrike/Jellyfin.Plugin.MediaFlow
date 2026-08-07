@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.5.0",
+        "changelog": "Improved TV year matching using episode air dates and cleaned noisy Rutracker title candidates.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow/releases/download/v0.1.5/Jellyfin.Plugin.MediaFlow.v.0.1.5.zip",
+        "checksum": "CEB3AAD4C14E2BB945859A96718F2B90",
+        "timestamp": "2026-08-07T23:12:40Z"
+      },
+      {
         "version": "0.1.4.0",
         "changelog": "Added persistent Dry Run diagnostic report with parser, TMDb matching, planned destination and result status.",
         "targetAbi": "10.11.0.0",
