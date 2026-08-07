@@ -94,7 +94,10 @@ public sealed partial class MediaParser
         }
 
         return directory
-            .Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries)
+            .Split(
+                [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+                StringSplitOptions.RemoveEmptyEntries)
+            .AsEnumerable()
             .Reverse()
             .Take(4)
             .ToList();
