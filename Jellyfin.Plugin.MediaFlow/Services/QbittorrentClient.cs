@@ -120,7 +120,7 @@ public sealed class QbittorrentClient : IDisposable
                     BaseAddress = new Uri(config.QbittorrentUrl.TrimEnd('/') + "/", UriKind.Absolute),
                     Timeout = TimeSpan.FromSeconds(20)
                 };
-                _client.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-MediaFlow/0.1.1");
+                _client.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-MediaFlow/0.1.2");
                 _signature = signature;
                 _authenticated = false;
             }

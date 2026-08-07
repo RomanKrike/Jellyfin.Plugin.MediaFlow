@@ -40,6 +40,14 @@ public sealed class PluginConfiguration : BasePluginConfiguration
 
     public bool ManageSequentialEpisodes { get; set; } = true;
 
+    public bool BaselineExistingTorrentsOnFirstRun { get; set; } = true;
+
+    public bool DryRunMode { get; set; } = true;
+
+    public string DryRunTorrentFilter { get; set; } = string.Empty;
+
+    public int DryRunMaxFiles { get; set; } = 3;
+
     public long MinimumVideoSizeMb { get; set; } = 50;
 
     public int RetryFailedAfterMinutes { get; set; } = 10;

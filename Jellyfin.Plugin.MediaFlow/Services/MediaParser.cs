@@ -64,7 +64,8 @@ public sealed partial class MediaParser
             AddTitle(result, fileTitleSource, 0.95, "filename");
         }
 
-        AddTitle(result, torrentName, 1.0, "torrent");
+        var addedTorrentAliases = AddTorrentTitleCandidates(result, torrentName);
+        AddTitle(result, torrentName, addedTorrentAliases ? 0.55 : 1.0, addedTorrentAliases ? "torrent:full" : "torrent");
 
         var folderWeight = 0.88;
         foreach (var directory in directories)
@@ -82,7 +83,11 @@ public sealed partial class MediaParser
     public (int Season, int Episode)? FindEpisodeNumbers(string fileName, string torrentName)
     {
         var fileBase = Path.GetFileNameWithoutExtension(fileName);
-        return FindEpisode(fileBase) ?? FindEpisode(torrentName) ?? FindEpisodeUsingContext(fileBase, [], torrentName);
+        var directories = GetDirectorySegments(fileName);
+        return FindEpisode(fileBase)
+            ?? directories.Select(FindEpisode).FirstOrDefault(x => x.HasValue)
+            ?? FindEpisode(torrentName)
+            ?? FindEpisodeUsingContext(fileBase, directories, torrentName);
     }
 
     private static List<string> GetDirectorySegments(string relativeFileName)
@@ -102,6 +107,66 @@ public sealed partial class MediaParser
             .Take(4)
             .ToList();
     }
+
+    private static bool AddTorrentTitleCandidates(ParsedMedia target, string torrentName)
+    {
+        var parts = SlashTitleSeparatorRegex().Split(torrentName)
+            .Select(x => x.Trim())
+            .Where(x => x.Length > 0)
+            .Take(8)
+            .ToList();
+
+        if (parts.Count < 2)
+        {
+            return false;
+        }
+
+        var added = 0;
+        for (var i = 0; i < parts.Count && added < 4; i++)
+        {
+            var part = parts[i];
+            if (TorrentMetadataSegmentRegex().IsMatch(part))
+            {
+                break;
+            }
+
+            var stopAfter = HasUnclosedParenthesis(part);
+            var candidate = part;
+            if (stopAfter)
+            {
+                var paren = candidate.IndexOf(" (", StringComparison.Ordinal);
+                if (paren > 1)
+                {
+                    candidate = candidate[..paren];
+                }
+            }
+
+            var bracket = candidate.IndexOf(" [", StringComparison.Ordinal);
+            if (bracket > 1)
+            {
+                candidate = candidate[..bracket];
+                stopAfter = true;
+            }
+
+            candidate = TvRoleSuffixRegex().Replace(candidate, " ");
+            var cleaned = CleanTitle(candidate);
+            if (cleaned.Length >= 2)
+            {
+                AddTitle(target, cleaned, Math.Max(0.88, 1.0 - (added * 0.03)), $"torrent:alias:{added}");
+                added++;
+            }
+
+            if (stopAfter)
+            {
+                break;
+            }
+        }
+
+        return added > 0;
+    }
+
+    private static bool HasUnclosedParenthesis(string value)
+        => value.Count(x => x == '(') > value.Count(x => x == ')');
 
     private static void AddTitle(ParsedMedia target, string raw, double weight, string source)
     {
@@ -264,6 +329,11 @@ public sealed partial class MediaParser
 
     private static int? FindSeason(string value)
     {
+        if (SeasonRangeDetectionRegex().IsMatch(value))
+        {
+            return null;
+        }
+
         var match = SeasonRegex().Match(value);
         return match.Success ? ParseInt(match.Groups["s"].Value) : null;
     }
@@ -305,28 +375,31 @@ public sealed partial class MediaParser
     [GeneratedRegex(@"(?i)(?:^|[^0-9])(?<s>\d{1,2})x(?<e>\d{1,3})(?:[^0-9]|$)")]
     private static partial Regex AltEpisodeRegex();
 
-    [GeneratedRegex(@"(?i)(?:сезон|season)[ ._\-]*(?<s>\d{1,2}).{0,20}?(?:серия|episode|ep)[ ._\-]*(?<e>\d{1,3})")]
+    [GeneratedRegex(@"(?i)(?:сезон|season)[ ._:\-]*(?<s>\d{1,2}).{0,30}?(?:серия|episode|ep)[ ._:\-]*(?<e>\d{1,3})(?![ ._:\-]*(?:-|–|—)\d)")]
     private static partial Regex RussianEpisodeRegex();
 
-    [GeneratedRegex(@"(?i)(?:^|[^A-Za-z0-9])(?:S|Season[ ._\-]*|Сезон[ ._\-]*)(?<s>\d{1,2})(?:[^0-9]|$)")]
+    [GeneratedRegex(@"(?i)(?:^|[^A-Za-z0-9])(?:S|Season[ ._:\-]*|Сезон[ ._:\-]*)(?<s>\d{1,2})(?:[^0-9]|$)")]
     private static partial Regex SeasonRegex();
 
-    [GeneratedRegex(@"(?i)(?:^|[ ._\-\[])(?:E|EP)[ ._\-]*(?<e>\d{1,3})(?:[ ._\-\]]|$)")]
+    [GeneratedRegex(@"(?i)(?:^|[^A-Za-z0-9])(?:S|Season[ ._:\-]*|Сезон[ ._:\-]*)\d{1,2}[ ._:\-]*(?:-|–|—|to|до)[ ._:\-]*(?:S|Season[ ._:\-]*|Сезон[ ._:\-]*)?\d{1,2}")]
+    private static partial Regex SeasonRangeDetectionRegex();
+
+    [GeneratedRegex(@"(?i)(?:^|[ ._\-\[])(?:E|EP|Episode|Серия)[ ._:\-]*(?<e>\d{1,3})(?:[ ._\-\]]|$)")]
     private static partial Regex EpisodeOnlyRegex();
 
     [GeneratedRegex(@"^(?<e>\d{1,3})(?:[ ._\-]|$)")]
     private static partial Regex LeadingEpisodeRegex();
 
-    [GeneratedRegex(@"(?i)(?:^|[ ._\-\[])(?:S|Season[ ._\-]*|Сезон[ ._\-]*)(?:\d{1,2})[ ._\-]*(?:-|–|—|to|до)[ ._\-]*(?:S|Season[ ._\-]*|Сезон[ ._\-]*)?\d{1,2}(?:[ ._\-\]]|$)")]
+    [GeneratedRegex(@"(?i)(?:^|[ ._\-\[])(?:S|Season[ ._:\-]*|Сезон[ ._:\-]*)(?:\d{1,2})[ ._:\-]*(?:-|–|—|to|до)[ ._:\-]*(?:S|Season[ ._:\-]*|Сезон[ ._:\-]*)?\d{1,2}(?:[ ._\-\]]|$)")]
     private static partial Regex SeasonPackRegex();
 
-    [GeneratedRegex(@"(?i)(?:^|[ ._\-\[])(?:S|Season[ ._\-]*|Сезон[ ._\-]*)(?:\d{1,2})(?:[ ._\-\]]|$)")]
+    [GeneratedRegex(@"(?i)(?:^|[ ._\-\[])(?:S|Season[ ._:\-]*|Сезон[ ._:\-]*)(?:\d{1,2})(?:[ ._\-\]]|$)")]
     private static partial Regex StandaloneSeasonRegex();
 
     [GeneratedRegex(@"(?<!\d)(?:19\d{2}|20\d{2})(?!\d)")]
     private static partial Regex YearRegex();
 
-    [GeneratedRegex(@"(?i)^\s*(?:S|Season[ ._\-]*|Сезон[ ._\-]*)\d{1,2}\s*$")]
+    [GeneratedRegex(@"(?i)^\s*(?:S|Season[ ._:\-]*|Сезон[ ._:\-]*)\d{1,2}\s*$")]
     private static partial Regex SeasonOnlyRegex();
 
     [GeneratedRegex(@"[._]+")]
@@ -340,4 +413,13 @@ public sealed partial class MediaParser
 
     [GeneratedRegex(@"(?i)(?:\b(?:10bit|8bit|hi10p|10-bit|5\.1|7\.1|2\.0|60fps|50fps|24fps)\b)")]
     private static partial Regex CodecGarbageRegex();
+
+    [GeneratedRegex(@"\s+/\s+")]
+    private static partial Regex SlashTitleSeparatorRegex();
+
+    [GeneratedRegex(@"(?i)^\s*(?:сезон|season|серии|серия|episodes?|эпизоды?)\s*[:\-]")]
+    private static partial Regex TorrentMetadataSegmentRegex();
+
+    [GeneratedRegex(@"(?i)\s*\((?:тв|tv)[ ._\-]*\d+\)\s*$")]
+    private static partial Regex TvRoleSuffixRegex();
 }
