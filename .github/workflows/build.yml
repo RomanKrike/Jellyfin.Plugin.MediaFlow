@@ -1,0 +1,39 @@
+name: build
+
+on:
+  workflow_dispatch:
+    inputs:
+      jellyfin_version:
+        description: Exact Jellyfin server version
+        required: true
+        default: '10.11.11'
+
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Publish
+        run: >
+          dotnet publish
+          Jellyfin.Plugin.MediaFlow/Jellyfin.Plugin.MediaFlow.csproj
+          -c Release
+          -p:JellyfinVersion="${{ inputs.jellyfin_version || '10.11.11' }}"
+
+      - name: Upload plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jellyfin.Plugin.MediaFlow
+          path: Jellyfin.Plugin.MediaFlow/bin/Release/net9.0/publish/Jellyfin.Plugin.MediaFlow.dll
