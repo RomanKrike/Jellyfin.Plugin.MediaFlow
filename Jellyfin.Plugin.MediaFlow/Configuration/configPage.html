@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>MediaFlow</title>
+</head>
+<body>
+<div id="MediaFlowConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+    <div data-role="content">
+        <div class="content-primary">
+            <form id="MediaFlowConfigForm">
+                <h2>MediaFlow</h2>
+                <p>Imports individually completed qBittorrent video files into Jellyfin using smart TMDb matching and hardlinks.</p>
+
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label"><input id="Enabled" type="checkbox" is="emby-checkbox" /><span>Enable MediaFlow worker</span></label>
+                </div>
+
+                <h3>qBittorrent</h3>
+                <div class="inputContainer"><label class="inputLabel" for="QbittorrentUrl">URL</label><input id="QbittorrentUrl" type="text" is="emby-input" /><div class="fieldDescription">Prefer the direct LAN/container URL, not the public reverse proxy.</div></div>
+                <div class="inputContainer"><label class="inputLabel" for="QbittorrentUsername">Username</label><input id="QbittorrentUsername" type="text" is="emby-input" /></div>
+                <div class="inputContainer"><label class="inputLabel" for="QbittorrentPassword">Password</label><input id="QbittorrentPassword" type="password" is="emby-input" /></div>
+                <div class="inputContainer"><label class="inputLabel" for="QbittorrentCategory">Category</label><input id="QbittorrentCategory" type="text" is="emby-input" /><div class="fieldDescription">Only torrents in this category are processed. Default: mediaflow. Empty = all torrents.</div></div>
+                <div class="inputContainer"><label class="inputLabel" for="QbittorrentPathPrefix">qBittorrent path prefix</label><input id="QbittorrentPathPrefix" type="text" is="emby-input" /><div class="fieldDescription">Example: /downloads inside the qBittorrent container.</div></div>
+                <div class="inputContainer"><label class="inputLabel" for="LocalDownloadsPathPrefix">Local/Jellyfin path prefix</label><input id="LocalDownloadsPathPrefix" type="text" is="emby-input" /><div class="fieldDescription">Example: /downloads if both containers share the same mount, or the mapped path visible from Jellyfin.</div></div>
+                <div class="checkboxContainer checkboxContainer-withDescription"><label class="emby-checkbox-label"><input id="ManageSequentialEpisodes" type="checkbox" is="emby-checkbox" /><span>Strict sequential episode downloading</span></label><div class="fieldDescription">Sets the next episode to max priority and later episode video files to Do not download.</div></div>
+
+                <h3>TMDb resolver</h3>
+                <div class="inputContainer"><label class="inputLabel" for="TmdbApiKey">TMDb API key (v3)</label><input id="TmdbApiKey" type="password" is="emby-input" /></div>
+                <div class="inputContainer"><label class="inputLabel" for="TmdbLanguage">Language</label><input id="TmdbLanguage" type="text" is="emby-input" /></div>
+                <div class="inputContainer"><label class="inputLabel" for="TmdbFallbackLanguage">Fallback language</label><input id="TmdbFallbackLanguage" type="text" is="emby-input" /></div>
+                <div class="inputContainer"><label class="inputLabel" for="AutoMatchScore">Auto-match score</label><input id="AutoMatchScore" type="number" step="0.1" min="0" max="100" is="emby-input" /></div>
+                <div class="inputContainer"><label class="inputLabel" for="MinimumScoreGap">Minimum gap to second candidate</label><input id="MinimumScoreGap" type="number" step="0.1" min="0" max="100" is="emby-input" /></div>
+
+                <h3>Libraries</h3>
+                <div class="inputContainer"><label class="inputLabel" for="MoviesRoot">Movies root</label><input id="MoviesRoot" type="text" is="emby-input" /></div>
+                <div class="inputContainer"><label class="inputLabel" for="ShowsRoot">Shows root</label><input id="ShowsRoot" type="text" is="emby-input" /></div>
+                <div class="fieldDescription">Hardlinks require the download source and target library to be on the same filesystem.</div>
+
+                <h3>Worker</h3>
+                <div class="inputContainer"><label class="inputLabel" for="PollIntervalSeconds">Polling interval, seconds</label><input id="PollIntervalSeconds" type="number" min="3" max="300" is="emby-input" /></div>
+                <div class="inputContainer"><label class="inputLabel" for="MinimumVideoSizeMb">Minimum video size, MB</label><input id="MinimumVideoSizeMb" type="number" min="0" is="emby-input" /></div>
+
+                <button is="emby-button" type="submit" class="raised button-submit block emby-button"><span>Save</span></button>
+            </form>
+        </div>
+    </div>
+
+<script type="text/javascript">
+const MediaFlowConfig = { pluginUniqueId: '9c98f2dc-f6d7-4f41-9e7f-84f6cf25d8bb' };
+const ids = [
+    'QbittorrentUrl','QbittorrentUsername','QbittorrentPassword','QbittorrentCategory','QbittorrentPathPrefix','LocalDownloadsPathPrefix',
+    'TmdbApiKey','TmdbLanguage','TmdbFallbackLanguage','MoviesRoot','ShowsRoot','PollIntervalSeconds','AutoMatchScore','MinimumScoreGap','MinimumVideoSizeMb'
+];
+
+document.querySelector('#MediaFlowConfigPage').addEventListener('pageshow', function () {
+    Dashboard.showLoadingMsg();
+    ApiClient.getPluginConfiguration(MediaFlowConfig.pluginUniqueId).then(function (config) {
+        document.querySelector('#Enabled').checked = config.Enabled;
+        document.querySelector('#ManageSequentialEpisodes').checked = config.ManageSequentialEpisodes;
+        ids.forEach(id => { document.querySelector('#' + id).value = config[id] ?? ''; });
+        Dashboard.hideLoadingMsg();
+    });
+});
+
+document.querySelector('#MediaFlowConfigForm').addEventListener('submit', function (e) {
+    Dashboard.showLoadingMsg();
+    ApiClient.getPluginConfiguration(MediaFlowConfig.pluginUniqueId).then(function (config) {
+        config.Enabled = document.querySelector('#Enabled').checked;
+        config.ManageSequentialEpisodes = document.querySelector('#ManageSequentialEpisodes').checked;
+        ids.forEach(id => {
+            const el = document.querySelector('#' + id);
+            if (el.type === 'number') config[id] = Number(el.value);
+            else config[id] = el.value;
+        });
+        ApiClient.updatePluginConfiguration(MediaFlowConfig.pluginUniqueId, config).then(function (result) {
+            Dashboard.processPluginConfigurationUpdateResult(result);
+        });
+    });
+    e.preventDefault();
+    return false;
+});
+</script>
+</div>
+</body>
+</html>
