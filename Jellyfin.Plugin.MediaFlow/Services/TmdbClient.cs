@@ -83,10 +83,30 @@ public sealed class TmdbClient
 
     public async Task<string?> GetEpisodeTitleAsync(int seriesId, int season, int episode, CancellationToken cancellationToken)
     {
+        var info = await GetEpisodeInfoAsync(seriesId, season, episode, cancellationToken).ConfigureAwait(false);
+        return info.Exists ? info.Title ?? string.Empty : null;
+    }
+
+    public async Task<TmdbEpisodeInfo> GetEpisodeInfoAsync(
+        int seriesId,
+        int season,
+        int episode,
+        CancellationToken cancellationToken)
+    {
         var config = GetConfig();
         var languages = new[] { config.TmdbLanguage, config.TmdbFallbackLanguage }
             .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Distinct(StringComparer.OrdinalIgnoreCase);
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (languages.Count == 0)
+        {
+            languages.Add("en-US");
+        }
+
+        var exists = false;
+        string? bestTitle = null;
+        int? airYear = null;
 
         foreach (var language in languages)
         {
@@ -94,7 +114,7 @@ public sealed class TmdbClient
             using var response = await _client.GetAsync(url, cancellationToken).ConfigureAwait(false);
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
-                return null;
+                return new TmdbEpisodeInfo(false, null, null);
             }
 
             if (!response.IsSuccessStatusCode)
@@ -102,16 +122,22 @@ public sealed class TmdbClient
                 continue;
             }
 
+            exists = true;
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             var payload = await JsonSerializer.DeserializeAsync<EpisodeResponse>(stream, JsonOptions, cancellationToken).ConfigureAwait(false);
+
+            airYear ??= ParseYear(payload?.AirDate);
             if (!string.IsNullOrWhiteSpace(payload?.Name))
             {
-                return payload.Name;
+                bestTitle ??= payload.Name;
+                break;
             }
         }
 
-        return string.Empty;
+        return new TmdbEpisodeInfo(exists, bestTitle ?? (exists ? string.Empty : null), airYear);
     }
+
+    public sealed record TmdbEpisodeInfo(bool Exists, string? Title, int? AirYear);
 
     private static void CollectNames(JsonElement element, HashSet<string> output)
     {
@@ -194,5 +220,8 @@ public sealed class TmdbClient
     {
         [JsonPropertyName("name")]
         public string? Name { get; set; }
+
+        [JsonPropertyName("air_date")]
+        public string? AirDate { get; set; }
     }
 }

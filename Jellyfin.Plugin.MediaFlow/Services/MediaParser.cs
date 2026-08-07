@@ -12,7 +12,7 @@ public sealed partial class MediaParser
         "2160p", "1080p", "1080i", "720p", "576p", "480p", "4k", "uhd",
         "web-dl", "webdl", "webrip", "web-rip", "bluray", "blu-ray", "bdrip", "brrip", "remux", "hdtv", "dvdrip",
         "x264", "x265", "h264", "h265", "hevc", "avc", "av1", "xvid",
-        "hdr", "hdr10", "hdr10+", "dv", "dolbyvision", "dolby-vision",
+        "hdr", "hdr10", "hdr10+", "sdr", "dv", "dolbyvision", "dolby-vision",
         "aac", "ac3", "eac3", "ddp", "ddp5.1", "truehd", "atmos", "dts", "dts-hd", "flac",
         "proper", "repack", "internal", "extended", "uncut", "director's", "directors", "limited",
         "complete", "collection", "pack", "seasonpack", "season-pack", "fullseason", "full-season",
@@ -65,7 +65,10 @@ public sealed partial class MediaParser
         }
 
         var addedTorrentAliases = AddTorrentTitleCandidates(result, torrentName);
-        AddTitle(result, torrentName, addedTorrentAliases ? 0.55 : 1.0, addedTorrentAliases ? "torrent:full" : "torrent");
+        if (!addedTorrentAliases)
+        {
+            AddTitle(result, torrentName, 1.0, "torrent");
+        }
 
         var folderWeight = 0.88;
         foreach (var directory in directories)
@@ -170,8 +173,13 @@ public sealed partial class MediaParser
 
     private static void AddTitle(ParsedMedia target, string raw, double weight, string source)
     {
+        if (TorrentMetadataSegmentRegex().IsMatch(raw))
+        {
+            return;
+        }
+
         var cleaned = CleanTitle(raw);
-        if (cleaned.Length < 2)
+        if (cleaned.Length < 2 || TorrentMetadataSegmentRegex().IsMatch(cleaned))
         {
             return;
         }
@@ -411,7 +419,7 @@ public sealed partial class MediaParser
     [GeneratedRegex(@"(?i)\[(?:[^\]]*(?:1080|2160|720|web|bluray|x26|hevc|hdr|rus|eng|aac|dts)[^\]]*)\]")]
     private static partial Regex BracketNoiseRegex();
 
-    [GeneratedRegex(@"(?i)(?:\b(?:10bit|8bit|hi10p|10-bit|5\.1|7\.1|2\.0|60fps|50fps|24fps)\b)")]
+    [GeneratedRegex(@"(?i)(?:\b(?:10bit|8bit|hi10p|10-bit|5\.1|7\.1|2\.0|60fps|50fps|24fps)\b|\b(?:h|x)\s*26[45]\b)")]
     private static partial Regex CodecGarbageRegex();
 
     [GeneratedRegex(@"\s+/\s+")]

@@ -50,6 +50,8 @@ public sealed class TmdbCandidate
 
     public string? EpisodeTitle { get; set; }
 
+    public int? EpisodeAirYear { get; set; }
+
     public double Score { get; set; }
 
     public List<string> Reasons { get; } = [];

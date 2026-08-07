@@ -56,9 +56,14 @@ public sealed class MediaResolver
 
             if (parsed.Kind == MediaKind.Episode && parsed.Season.HasValue && parsed.Episode.HasValue)
             {
-                var episodeName = await _tmdb.GetEpisodeTitleAsync(candidate.Id, parsed.Season.Value, parsed.Episode.Value, cancellationToken).ConfigureAwait(false);
-                candidate.EpisodeExists = episodeName is not null;
-                candidate.EpisodeTitle = episodeName;
+                var episodeInfo = await _tmdb.GetEpisodeInfoAsync(
+                    candidate.Id,
+                    parsed.Season.Value,
+                    parsed.Episode.Value,
+                    cancellationToken).ConfigureAwait(false);
+                candidate.EpisodeExists = episodeInfo.Exists;
+                candidate.EpisodeTitle = episodeInfo.Title;
+                candidate.EpisodeAirYear = episodeInfo.AirYear;
             }
 
             candidate.Score = FinalScore(parsed, candidate);
@@ -107,16 +112,41 @@ public sealed class MediaResolver
         candidate.Reasons.Add($"title={titlePoints:F1}");
 
         var yearPoints = 0.0;
-        if (candidate.Year.HasValue && parsed.Years.Count > 0)
+        if (parsed.Years.Count > 0)
         {
-            var bestDistance = parsed.Years.Min(x => Math.Abs(x.Value - candidate.Year.Value));
-            yearPoints = bestDistance switch
+            if (parsed.Kind == MediaKind.Movie && candidate.Year.HasValue)
             {
-                0 => parsed.Kind == MediaKind.Movie ? 15 : 10,
-                1 => 4,
-                _ => -4
-            };
-            candidate.Reasons.Add($"year={yearPoints:+0.0;-0.0;0.0}");
+                var bestDistance = parsed.Years.Min(x => Math.Abs(x.Value - candidate.Year.Value));
+                yearPoints = bestDistance switch
+                {
+                    0 => 15,
+                    1 => 4,
+                    _ => -4
+                };
+                candidate.Reasons.Add($"year={yearPoints:+0.0;-0.0;0.0}");
+            }
+            else if (parsed.Kind == MediaKind.Episode && candidate.EpisodeExists == true)
+            {
+                // A torrent year for TV commonly describes the season/episode release year,
+                // while TMDb candidate.Year is the series first-air year. Never penalize a
+                // structurally confirmed episode for that mismatch. If TMDb exposes the
+                // actual episode air year, matching it is useful positive evidence.
+                if (candidate.EpisodeAirYear.HasValue)
+                {
+                    var bestDistance = parsed.Years.Min(x => Math.Abs(x.Value - candidate.EpisodeAirYear.Value));
+                    yearPoints = bestDistance switch
+                    {
+                        0 => 10,
+                        1 => 3,
+                        _ => 0
+                    };
+                    candidate.Reasons.Add($"episodeYear={yearPoints:+0.0;-0.0;0.0}");
+                }
+                else
+                {
+                    candidate.Reasons.Add("year=ignored");
+                }
+            }
         }
 
         var structurePoints = 0.0;
