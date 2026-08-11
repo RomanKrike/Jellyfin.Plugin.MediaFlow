@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.11.0",
+        "changelog": "Fix MediaFlow v0.1.11 build",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow/releases/download/v0.1.11/Jellyfin.Plugin.MediaFlow.v.0.1.11.zip",
+        "checksum": "0C27C0EFFBD2C804B004C54AEA93C3A9",
+        "timestamp": "2026-08-11T22:29:29Z"
+      },
+      {
         "version": "0.1.10.0",
         "changelog": "Reconcile existing MediaFlow hardlinks on retry",
         "targetAbi": "10.11.0.0",
