@@ -69,6 +69,23 @@ public sealed class QbittorrentClient : IDisposable
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task DeleteTorrentAsync(string hash, bool deleteFiles, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(hash))
+        {
+            throw new ArgumentException("Torrent hash is required.", nameof(hash));
+        }
+
+        var form = new Dictionary<string, string>
+        {
+            ["hashes"] = hash,
+            ["deleteFiles"] = deleteFiles ? "true" : "false"
+        };
+
+        using var response = await SendAsync(HttpMethod.Post, "api/v2/torrents/delete", form, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+    }
+
     private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string relativeUrl, Dictionary<string, string>? form, CancellationToken cancellationToken)
     {
         await EnsureClientAndAuthAsync(cancellationToken).ConfigureAwait(false);

@@ -1,4 +1,5 @@
 using System.Net.Mime;
+using Jellyfin.Plugin.MediaFlow.Configuration;
 using Jellyfin.Plugin.MediaFlow.Models;
 using Jellyfin.Plugin.MediaFlow.Services;
 using MediaBrowser.Common.Api;
@@ -116,12 +117,210 @@ public sealed class MediaFlowAdminController : ControllerBase
     public async Task<ActionResult> ReprocessTorrent([FromRoute] string hash, CancellationToken cancellationToken)
     {
         ValidateHash(hash);
+        var staleImported = await RemoveStaleImportedStateAsync(hash, cancellationToken).ConfigureAwait(false);
         var removed = await _state.ReprocessTorrentAsync(hash, cancellationToken).ConfigureAwait(false);
         return Ok(new
         {
             success = true,
             removed,
-            message = "Torrent is eligible for MediaFlow processing again. Imported file state was preserved."
+            staleImported,
+            message = "Torrent is eligible for MediaFlow processing again. Healthy Imported entries were preserved; missing/conflicting Imported state was released for a fresh search/import."
+        });
+    }
+
+    [HttpPost("torrents/{hash}/reconcile")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult> ReconcileTorrent([FromRoute] string hash, CancellationToken cancellationToken)
+    {
+        ValidateHash(hash);
+        var config = Plugin.Instance?.Configuration
+            ?? throw new InvalidOperationException("MediaFlow plugin configuration is not available.");
+
+        var torrents = await _qbittorrent.GetTorrentsAsync(cancellationToken).ConfigureAwait(false);
+        var torrent = torrents.FirstOrDefault(x => string.Equals(x.Hash, hash, StringComparison.OrdinalIgnoreCase));
+        if (torrent is null)
+        {
+            return NotFound(new { message = "Torrent is no longer present in qBittorrent or its category is not managed by MediaFlow." });
+        }
+
+        var files = await _qbittorrent.GetFilesAsync(hash, cancellationToken).ConfigureAwait(false);
+        var state = await _state.GetAllAsync(cancellationToken).ConfigureAwait(false);
+        var prefix = hash + ":";
+        var entries = state
+            .Where(x => x.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase);
+
+        var eligibleFiles = files.Where(x => IsEligibleVideoFile(x, config)).ToList();
+        var completedFiles = eligibleFiles.Where(x => x.Progress >= 0.999999).ToList();
+        var untrackedCompleted = completedFiles.Count(x => !entries.ContainsKey(hash + ":" + x.Index.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+
+        var healthyImported = 0;
+        var missingInJellyfin = 0;
+        var differentDestination = 0;
+        var libraryOnly = 0;
+
+        foreach (var entry in entries.Values.Where(x => string.Equals(x.Status, "Imported", StringComparison.OrdinalIgnoreCase)))
+        {
+            var destinationExists = !string.IsNullOrWhiteSpace(entry.DestinationPath) && System.IO.File.Exists(entry.DestinationPath);
+            var sourceExists = !string.IsNullOrWhiteSpace(entry.SourcePath) && System.IO.File.Exists(entry.SourcePath);
+
+            if (!destinationExists)
+            {
+                missingInJellyfin++;
+                continue;
+            }
+
+            if (!sourceExists)
+            {
+                libraryOnly++;
+                continue;
+            }
+
+            try
+            {
+                if (_hardLinks.IsSameFile(entry.SourcePath, entry.DestinationPath!))
+                {
+                    healthyImported++;
+                }
+                else
+                {
+                    differentDestination++;
+                }
+            }
+            catch
+            {
+                differentDestination++;
+            }
+        }
+
+        return Ok(new
+        {
+            success = true,
+            torrent = torrent.Name,
+            qBittorrentFiles = eligibleFiles.Count,
+            completedFiles = completedFiles.Count,
+            trackedFiles = entries.Count,
+            healthyImported,
+            missingInJellyfin,
+            differentDestination,
+            libraryOnly,
+            untrackedCompleted,
+            failed = entries.Values.Count(x => string.Equals(x.Status, "Failed", StringComparison.OrdinalIgnoreCase)),
+            needsReview = entries.Values.Count(x => string.Equals(x.Status, "NeedsReview", StringComparison.OrdinalIgnoreCase)),
+            ignored = entries.Values.Count(x => string.Equals(x.Status, "Ignored", StringComparison.OrdinalIgnoreCase)),
+            message = "Comparison complete. Use Reprocess to release stale state and run TMDb matching/import again."
+        });
+    }
+
+    [HttpPost("torrents/{hash}/delete-jellyfin")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult> DeleteFromJellyfin([FromRoute] string hash, CancellationToken cancellationToken)
+    {
+        ValidateHash(hash);
+        var config = Plugin.Instance?.Configuration
+            ?? throw new InvalidOperationException("MediaFlow plugin configuration is not available.");
+        var state = await _state.GetAllAsync(cancellationToken).ConfigureAwait(false);
+        var prefix = hash + ":";
+        var imported = state
+            .Where(x => x.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(x.Value.Status, "Imported", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(x.Value.DestinationPath))
+            .ToList();
+
+        var deleted = 0;
+        var missing = 0;
+        var conflicts = 0;
+        var unsafePaths = 0;
+        var removedState = 0;
+
+        foreach (var item in imported)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var destination = item.Value.DestinationPath!;
+            if (!IsManagedLibraryPath(destination, config))
+            {
+                unsafePaths++;
+                continue;
+            }
+
+            if (!System.IO.File.Exists(destination))
+            {
+                missing++;
+                if (await _state.RemoveAsync(item.Key, cancellationToken).ConfigureAwait(false))
+                {
+                    removedState++;
+                }
+                continue;
+            }
+
+            if (System.IO.File.Exists(item.Value.SourcePath))
+            {
+                try
+                {
+                    if (!_hardLinks.IsSameFile(item.Value.SourcePath, destination))
+                    {
+                        conflicts++;
+                        continue;
+                    }
+                }
+                catch
+                {
+                    conflicts++;
+                    continue;
+                }
+            }
+
+            System.IO.File.Delete(destination);
+            deleted++;
+            if (await _state.RemoveAsync(item.Key, cancellationToken).ConfigureAwait(false))
+            {
+                removedState++;
+            }
+        }
+
+        // Suppress the torrent so the worker does not immediately recreate the Jellyfin hardlinks.
+        // Reprocess removes this per-torrent baseline marker when the administrator wants the media back.
+        await _state.SetAsync(new ImportStateEntry
+        {
+            Key = BaselineTorrentPrefix + hash,
+            Status = "Baseline",
+            Message = "Suppressed after administrator removed MediaFlow destinations from Jellyfin. Use Reprocess to import again."
+        }, cancellationToken).ConfigureAwait(false);
+
+        if (deleted > 0 || missing > 0)
+        {
+            _libraryManager.QueueLibraryScan();
+        }
+
+        return Ok(new
+        {
+            success = true,
+            deletedFiles = deleted,
+            missingFiles = missing,
+            conflicts,
+            unsafePaths,
+            removedState,
+            suppressed = true,
+            message = "MediaFlow destinations were removed from the Jellyfin library where safe. The qBittorrent torrent was not changed. Use Reprocess to search/match/import it again."
+        });
+    }
+
+    [HttpPost("torrents/{hash}/delete-qbittorrent")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult> DeleteFromQbittorrent(
+        [FromRoute] string hash,
+        [FromQuery] bool deleteFiles,
+        CancellationToken cancellationToken)
+    {
+        ValidateHash(hash);
+        await _qbittorrent.DeleteTorrentAsync(hash, deleteFiles, cancellationToken).ConfigureAwait(false);
+        return Ok(new
+        {
+            success = true,
+            deleteFiles,
+            message = deleteFiles
+                ? "Torrent and qBittorrent source data were removed. Existing Jellyfin hardlinks were not deleted."
+                : "Torrent was removed from qBittorrent. Source data and Jellyfin files were left untouched."
         });
     }
 
@@ -323,6 +522,94 @@ public sealed class MediaFlowAdminController : ControllerBase
         }, cancellationToken).ConfigureAwait(false);
 
         return Ok(new { success = true, message = "Review item ignored." });
+    }
+
+    private async Task<int> RemoveStaleImportedStateAsync(string hash, CancellationToken cancellationToken)
+    {
+        var state = await _state.GetAllAsync(cancellationToken).ConfigureAwait(false);
+        var prefix = hash + ":";
+        var staleKeys = new List<string>();
+
+        foreach (var item in state.Where(x => x.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(x.Value.Status, "Imported", StringComparison.OrdinalIgnoreCase)))
+        {
+            var entry = item.Value;
+            if (string.IsNullOrWhiteSpace(entry.DestinationPath) || !System.IO.File.Exists(entry.DestinationPath))
+            {
+                staleKeys.Add(item.Key);
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(entry.SourcePath) && System.IO.File.Exists(entry.SourcePath))
+            {
+                try
+                {
+                    if (!_hardLinks.IsSameFile(entry.SourcePath, entry.DestinationPath))
+                    {
+                        staleKeys.Add(item.Key);
+                    }
+                }
+                catch
+                {
+                    staleKeys.Add(item.Key);
+                }
+            }
+        }
+
+        var removed = 0;
+        foreach (var key in staleKeys)
+        {
+            if (await _state.RemoveAsync(key, cancellationToken).ConfigureAwait(false))
+            {
+                removed++;
+            }
+        }
+
+        return removed;
+    }
+
+    private static bool IsEligibleVideoFile(QbTorrentFile file, PluginConfiguration config)
+    {
+        if (file.Size < config.MinimumVideoSizeMb * 1024L * 1024L)
+        {
+            return false;
+        }
+
+        var extension = Path.GetExtension(file.Name);
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            return false;
+        }
+
+        var allowed = config.VideoExtensions
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(x => x.StartsWith('.') ? x : "." + x)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (!allowed.Contains(extension))
+        {
+            return false;
+        }
+
+        var fileName = Path.GetFileNameWithoutExtension(file.Name);
+        return !fileName.Contains("sample", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsManagedLibraryPath(string path, PluginConfiguration config)
+        => IsPathWithinRoot(path, config.MoviesRoot) || IsPathWithinRoot(path, config.ShowsRoot);
+
+    private static bool IsPathWithinRoot(string path, string root)
+    {
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(root))
+        {
+            return false;
+        }
+
+        var fullPath = Path.GetFullPath(path);
+        var fullRoot = Path.GetFullPath(root);
+        var relative = Path.GetRelativePath(fullRoot, fullPath);
+        return !Path.IsPathRooted(relative)
+            && !string.Equals(relative, "..", StringComparison.Ordinal)
+            && !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
     }
 
     private static MediaFlowTorrentRow BuildTorrentRow(QbTorrent torrent, IReadOnlyDictionary<string, ImportStateEntry> state)

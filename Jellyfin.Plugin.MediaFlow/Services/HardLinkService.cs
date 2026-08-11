@@ -26,7 +26,7 @@ public sealed class HardLinkService
         // treat the import as already completed instead of reporting a conflict.
         if (File.Exists(destination))
         {
-            if (AreSameFile(source, destination))
+            if (IsSameFile(source, destination))
             {
                 return destination;
             }
@@ -56,7 +56,20 @@ public sealed class HardLinkService
         return destination;
     }
 
-    private static bool AreSameFile(string source, string destination)
+    public bool IsSameFile(string sourcePath, string destinationPath)
+    {
+        var source = Path.GetFullPath(sourcePath);
+        var destination = Path.GetFullPath(destinationPath);
+
+        if (!File.Exists(source) || !File.Exists(destination))
+        {
+            return false;
+        }
+
+        return IsSameFileCore(source, destination);
+    }
+
+    private static bool IsSameFileCore(string source, string destination)
     {
         if (OperatingSystem.IsLinux())
         {

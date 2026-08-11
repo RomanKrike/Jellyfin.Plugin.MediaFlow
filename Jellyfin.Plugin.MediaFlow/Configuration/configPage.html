@@ -69,6 +69,14 @@
         #MediaFlowConfigPage .mf-mini-btn.danger { border-color:rgba(230,79,79,.45); color:#ff9b9b; }
         #MediaFlowConfigPage .mf-mini-btn.subtle { border-color:transparent; background:transparent; color:var(--mf-muted); }
         #MediaFlowConfigPage .mf-actions { display:flex; gap:.4rem; align-items:center; flex-wrap:wrap; }
+        #MediaFlowConfigPage .mf-action-menu { position:relative; }
+        #MediaFlowConfigPage .mf-action-menu > summary { list-style:none; cursor:pointer; user-select:none; }
+        #MediaFlowConfigPage .mf-action-menu > summary::-webkit-details-marker { display:none; }
+        #MediaFlowConfigPage .mf-action-menu[open] > summary { background:rgba(255,255,255,.11); }
+        #MediaFlowConfigPage .mf-action-menu-pop { position:absolute; right:0; top:calc(100% + .4rem); z-index:50; min-width:230px; display:grid; gap:.35rem; padding:.45rem; border:1px solid rgba(255,255,255,.16); border-radius:9px; background:#202020; box-shadow:0 12px 35px rgba(0,0,0,.45); }
+        #MediaFlowConfigPage .mf-action-menu-pop .mf-mini-btn { width:100%; text-align:left; }
+        #MediaFlowConfigPage .mf-action-menu-note { padding:.3rem .45rem .1rem; color:var(--mf-muted); font-size:.7rem; line-height:1.3; }
+        #MediaFlowConfigPage .mf-action-divider { height:1px; background:rgba(255,255,255,.09); margin:.15rem 0; }
 
         #MediaFlowConfigPage .mf-torrent-list { display:grid; gap:.75rem; }
         #MediaFlowConfigPage .mf-torrent-card { display:grid; grid-template-columns:68px minmax(0,1fr) minmax(210px,300px) auto; gap:1rem; align-items:center; padding:1rem; background:rgba(255,255,255,.035); border:1px solid var(--mf-border); border-radius:13px; }
@@ -145,7 +153,7 @@
                     <p class="mf-subtitle">Автоматический импорт из qBittorrent в Jellyfin, TMDb-сопоставление, hardlink, контроль состояния и ручная проверка неоднозначных совпадений.</p>
                 </div>
                 <div class="mf-header-actions">
-                    <button id="mfRefreshTop" type="button" is="emby-button" class="raised emby-button"><span>Обновить</span></button>
+                    <button id="mfRefreshTop" type="button" is="emby-button" class="raised emby-button"><span>Обновить экран</span></button>
                 </div>
             </div>
 
@@ -406,8 +414,19 @@
     function torrentCard(t, compact) {
         const pct = Math.max(0, Math.min(100, Number(t.progress || 0) * 100));
         const actions = '<div class="mf-actions">'
-            + '<button type="button" class="mf-mini-btn primary" data-action="reprocess" data-hash="' + esc(t.hash) + '">Повторить</button>'
-            + '<button type="button" class="mf-mini-btn danger" data-action="reset" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">Сбросить</button>'
+            + '<button type="button" class="mf-mini-btn" data-action="reconcile" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">Сверить</button>'
+            + '<button type="button" class="mf-mini-btn primary" data-action="reprocess" data-hash="' + esc(t.hash) + '">Повторить поиск</button>'
+            + '<details class="mf-action-menu">'
+                + '<summary class="mf-mini-btn">Ещё…</summary>'
+                + '<div class="mf-action-menu-pop">'
+                    + '<div class="mf-action-menu-note">Удаление выполняется отдельно: библиотека Jellyfin и qBittorrent не зависят друг от друга.</div>'
+                    + '<button type="button" class="mf-mini-btn danger" data-action="delete-jellyfin" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">Удалить из Jellyfin</button>'
+                    + '<button type="button" class="mf-mini-btn danger" data-action="delete-qb" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">Удалить из qBittorrent</button>'
+                    + '<button type="button" class="mf-mini-btn danger" data-action="delete-qb-files" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">qBittorrent + исходные файлы</button>'
+                    + '<div class="mf-action-divider"></div>'
+                    + '<button type="button" class="mf-mini-btn subtle" data-action="reset" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">Сбросить только state</button>'
+                + '</div>'
+            + '</details>'
             + '</div>';
         const sizeText = fmtBytes(t.downloaded) + ' / ' + fmtBytes(t.size);
         const hashText = compact ? esc(String(t.hash || '').slice(0, 12)) : esc(t.hash || '');
@@ -669,14 +688,41 @@
         if (!action) return;
 
         try {
-            if (action.dataset.action === 'reprocess') {
-                if (!confirm('Снять baseline и повторить Failed/NeedsReview для этого торрента? Уже Imported записи сохранятся.')) return;
+            if (action.dataset.action === 'reconcile') {
+                Dashboard.showLoadingMsg();
+                const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/reconcile');
+                toast('Сверка: qB ' + r.completedFiles + '/' + r.qBittorrentFiles
+                    + ' готово · hardlink OK ' + r.healthyImported
+                    + ' · нет в Jellyfin ' + r.missingInJellyfin
+                    + ' · конфликтов ' + r.differentDestination
+                    + ' · не отслеживается ' + r.untrackedCompleted);
+                await refreshOverview(false);
+            } else if (action.dataset.action === 'reprocess') {
+                if (!confirm('Повторить поиск и внедрение для этого торрента?\n\nMediaFlow снимет baseline, очистит Failed / NeedsReview / Ignored и отпустит Imported-записи, если файл в Jellyfin отсутствует или больше не является тем же hardlink. Исправные Imported сохранятся.')) return;
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/reprocess');
-                toast('Готово. Удалено записей состояния: ' + r.removed);
+                toast('Повторная обработка разрешена: очищено ' + r.removed + ', устаревших Imported ' + (r.staleImported || 0) + '.');
+                await refreshOverview(false);
+            } else if (action.dataset.action === 'delete-jellyfin') {
+                if (!confirm('Удалить MediaFlow-файлы «' + (action.dataset.name || 'торрента') + '» из библиотеки Jellyfin?\n\nqBittorrent и исходные файлы останутся. MediaFlow временно поставит торрент в baseline, чтобы Worker не создал hardlink заново. Вернуть фильм/сериал можно кнопкой «Повторить поиск».')) return;
+                Dashboard.showLoadingMsg();
+                const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/delete-jellyfin');
+                toast('Jellyfin: удалено ' + r.deletedFiles + ' · уже отсутствовало ' + r.missingFiles + ' · конфликтов ' + r.conflicts + '.');
+                await refreshOverview(false);
+            } else if (action.dataset.action === 'delete-qb') {
+                if (!confirm('Удалить «' + (action.dataset.name || 'торрент') + '» из qBittorrent?\n\nСкачанные исходные файлы останутся на диске. Jellyfin не изменяется.')) return;
+                Dashboard.showLoadingMsg();
+                const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/delete-qbittorrent?deleteFiles=false');
+                toast(r.message || 'Удалено из qBittorrent.');
+                await refreshOverview(false);
+            } else if (action.dataset.action === 'delete-qb-files') {
+                if (!confirm('ВНИМАНИЕ: удалить «' + (action.dataset.name || 'торрент') + '» из qBittorrent И удалить исходные файлы раздачи?\n\nHardlink-файлы, уже находящиеся в Jellyfin, останутся. Это действие необратимо для исходной раздачи.')) return;
+                Dashboard.showLoadingMsg();
+                const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/delete-qbittorrent?deleteFiles=true');
+                toast(r.message || 'Torrent and source data removed.');
                 await refreshOverview(false);
             } else if (action.dataset.action === 'reset') {
-                if (!confirm('Полностью удалить состояние MediaFlow для «' + (action.dataset.name || 'торрента') + '»?\n\nImported записи тоже будут удалены. Файлы из библиотеки не удаляются.')) return;
+                if (!confirm('Полностью удалить состояние MediaFlow для «' + (action.dataset.name || 'торрента') + '»?\n\nФайлы в Jellyfin и qBittorrent не удаляются. Worker сможет заново обработать торрент.')) return;
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/reset');
                 toast('Состояние сброшено. Удалено записей: ' + r.removed);
@@ -776,7 +822,7 @@
 
     page.addEventListener('pageshow', initializePage);
     page.addEventListener('viewshow', initializePage);
-    console.info('MediaFlow UI v0.1.11 script loaded');
+    console.info('MediaFlow UI v0.1.12 script loaded');
     queueMicrotask(initializePage);
 })();
 </script>

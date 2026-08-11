@@ -82,8 +82,8 @@ public sealed class ImportStateStore
     }
 
     /// <summary>
-    /// Safely makes a torrent eligible for processing again while preserving already imported file entries.
-    /// Removes the torrent baseline plus Failed/NeedsReview entries for this torrent.
+    /// Safely makes a torrent eligible for processing again while preserving healthy imported file entries.
+    /// Removes the torrent baseline plus Failed/NeedsReview/Ignored entries for this torrent.
     /// </summary>
     public async Task<int> ReprocessTorrentAsync(string hash, CancellationToken cancellationToken)
     {
@@ -98,7 +98,8 @@ public sealed class ImportStateStore
                 .Where(x => string.Equals(x.Key, baselineKey, StringComparison.OrdinalIgnoreCase)
                     || (x.Key.StartsWith(filePrefix, StringComparison.OrdinalIgnoreCase)
                         && (string.Equals(x.Value.Status, "Failed", StringComparison.OrdinalIgnoreCase)
-                            || string.Equals(x.Value.Status, "NeedsReview", StringComparison.OrdinalIgnoreCase))))
+                            || string.Equals(x.Value.Status, "NeedsReview", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(x.Value.Status, "Ignored", StringComparison.OrdinalIgnoreCase))))
                 .Select(x => x.Key)
                 .ToList();
 
