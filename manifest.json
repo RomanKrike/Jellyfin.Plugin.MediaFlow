@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.6.0",
+        "changelog": "Fix automatic release tagging",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow/releases/download/v0.1.6/Jellyfin.Plugin.MediaFlow.v.0.1.6.zip",
+        "checksum": "466517B1F24377C194FA9FE102B59084",
+        "timestamp": "2026-08-11T21:00:49Z"
+      },
+      {
         "version": "0.1.5.0",
         "changelog": "Improved TV year matching using episode air dates and cleaned noisy Rutracker title candidates.",
         "targetAbi": "10.11.0.0",
