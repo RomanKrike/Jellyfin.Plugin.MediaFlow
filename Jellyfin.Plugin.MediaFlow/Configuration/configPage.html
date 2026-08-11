@@ -189,7 +189,7 @@
     const fmtBytes = bytes => {
         const n = Number(bytes || 0); if (!n) return '—';
         const units = ['B','KB','MB','GB','TB']; let x=n, i=0; while (x>=1024 && i<units.length-1) { x/=1024; i++; }
-        return `${x.toFixed(i >= 3 ? 1 : 0)} ${units[i]}`;
+        return x.toFixed(i >= 3 ? 1 : 0) + ' ' + units[i];
     };
     const fmtDate = value => { if (!value) return '—'; try { return new Date(value).toLocaleString('ru-RU'); } catch { return String(value); } };
     const statusClass = status => status === 'Imported' ? 'ok' : status === 'Failed' ? 'err' : status === 'NeedsReview' ? 'warn' : status === 'Baseline' ? '' : 'info';
@@ -207,19 +207,39 @@
 
     function torrentRow(t, compact) {
         const pct = Math.max(0, Math.min(100, Number(t.progress || 0) * 100));
-        const files = `${t.importedFiles || 0} imported${t.reviewFiles ? ` · ${t.reviewFiles} review` : ''}${t.failedFiles ? ` · ${t.failedFiles} failed` : ''}`;
-        const actions = `<div class="mf-actions">
-            <button type="button" class="mf-mini-btn primary" data-action="reprocess" data-hash="${esc(t.hash)}">Повторить</button>
-            <button type="button" class="mf-mini-btn danger" data-action="reset" data-hash="${esc(t.hash)}" data-name="${esc(t.name)}">Сбросить</button>
-        </div>`;
-        if (compact) return `<tr><td class="mf-name"><strong>${esc(t.name)}</strong><div class="mf-secondary">${esc(t.category)} · ${esc(t.hash)}</div></td><td>${pct.toFixed(1)}%<div class="mf-progress"><span style="width:${pct}%"></span></div></td><td><span class="mf-badge ${statusClass(t.mediaFlowStatus)}">${esc(statusLabel(t.mediaFlowStatus))}</span></td><td>${esc(files)}</td><td>${actions}</td></tr>`;
-        return `<tr><td class="mf-name"><strong>${esc(t.name)}</strong><div class="mf-secondary">${esc(t.hash)}</div></td><td>${esc(t.category)}</td><td>${esc(t.qbState || '—')}<div class="mf-secondary">${fmtBytes(t.downloaded)} / ${fmtBytes(t.size)}</div></td><td>${pct.toFixed(1)}%<div class="mf-progress"><span style="width:${pct}%"></span></div></td><td><span class="mf-badge ${statusClass(t.mediaFlowStatus)}">${esc(statusLabel(t.mediaFlowStatus))}</span></td><td>${esc(files)}</td><td>${actions}</td></tr>`;
+        const files = String(t.importedFiles || 0) + ' imported'
+            + (t.reviewFiles ? ' · ' + t.reviewFiles + ' review' : '')
+            + (t.failedFiles ? ' · ' + t.failedFiles + ' failed' : '');
+        const actions = '<div class="mf-actions">'
+            + '<button type="button" class="mf-mini-btn primary" data-action="reprocess" data-hash="' + esc(t.hash) + '">Повторить</button>'
+            + '<button type="button" class="mf-mini-btn danger" data-action="reset" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">Сбросить</button>'
+            + '</div>';
+        if (compact) {
+            return '<tr><td class="mf-name"><strong>' + esc(t.name) + '</strong><div class="mf-secondary">' + esc(t.category) + ' · ' + esc(t.hash)
+                + '</div></td><td>' + pct.toFixed(1) + '%<div class="mf-progress"><span style="width:' + pct
+                + '%"></span></div></td><td><span class="mf-badge ' + statusClass(t.mediaFlowStatus) + '">' + esc(statusLabel(t.mediaFlowStatus))
+                + '</span></td><td>' + esc(files) + '</td><td>' + actions + '</td></tr>';
+        }
+        return '<tr><td class="mf-name"><strong>' + esc(t.name) + '</strong><div class="mf-secondary">' + esc(t.hash)
+            + '</div></td><td>' + esc(t.category) + '</td><td>' + esc(t.qbState || '—') + '<div class="mf-secondary">' + fmtBytes(t.downloaded)
+            + ' / ' + fmtBytes(t.size) + '</div></td><td>' + pct.toFixed(1) + '%<div class="mf-progress"><span style="width:' + pct
+            + '%"></span></div></td><td><span class="mf-badge ' + statusClass(t.mediaFlowStatus) + '">' + esc(statusLabel(t.mediaFlowStatus))
+            + '</span></td><td>' + esc(files) + '</td><td>' + actions + '</td></tr>';
     }
 
     function historyRow(h, compact) {
-        if (compact) return `<tr><td><span class="mf-badge ${statusClass(h.status)}">${esc(statusLabel(h.status))}</span></td><td class="mf-name">${esc(h.sourcePath || '—')}<div class="mf-secondary">${esc(h.key)}</div></td><td>${h.tmdbId ? '#' + esc(h.tmdbId) : '—'}</td><td>${fmtDate(h.updatedAt)}</td></tr>`;
-        const retry = (h.status === 'Failed' || h.status === 'NeedsReview') ? `<button type="button" class="mf-mini-btn" data-action="retry-state" data-key="${esc(h.key)}">Retry</button>` : '';
-        return `<tr><td><span class="mf-badge ${statusClass(h.status)}">${esc(statusLabel(h.status))}</span></td><td class="mf-name">${esc(h.sourcePath || '—')}<div class="mf-secondary">${esc(h.key)}</div></td><td class="mf-secondary">${esc(h.destinationPath || '—')}</td><td>${h.tmdbId ? '#' + esc(h.tmdbId) : '—'}</td><td>${esc(h.message || '—')}</td><td>${fmtDate(h.updatedAt)}</td><td>${retry}</td></tr>`;
+        if (compact) {
+            return '<tr><td><span class="mf-badge ' + statusClass(h.status) + '">' + esc(statusLabel(h.status))
+                + '</span></td><td class="mf-name">' + esc(h.sourcePath || '—') + '<div class="mf-secondary">' + esc(h.key)
+                + '</div></td><td>' + (h.tmdbId ? '#' + esc(h.tmdbId) : '—') + '</td><td>' + fmtDate(h.updatedAt) + '</td></tr>';
+        }
+        const retry = (h.status === 'Failed' || h.status === 'NeedsReview')
+            ? '<button type="button" class="mf-mini-btn" data-action="retry-state" data-key="' + esc(h.key) + '">Retry</button>'
+            : '';
+        return '<tr><td><span class="mf-badge ' + statusClass(h.status) + '">' + esc(statusLabel(h.status))
+            + '</span></td><td class="mf-name">' + esc(h.sourcePath || '—') + '<div class="mf-secondary">' + esc(h.key)
+            + '</div></td><td class="mf-secondary">' + esc(h.destinationPath || '—') + '</td><td>' + (h.tmdbId ? '#' + esc(h.tmdbId) : '—')
+            + '</td><td>' + esc(h.message || '—') + '</td><td>' + fmtDate(h.updatedAt) + '</td><td>' + retry + '</td></tr>';
     }
 
     function renderOverview() {
@@ -242,21 +262,21 @@
     function renderQueue() {
         if (!overview) return;
         const q = (page.querySelector('#mfTorrentSearch').value || '').toLowerCase();
-        const rows = overview.torrents.filter(t => !q || `${t.name} ${t.hash} ${t.category} ${t.mediaFlowStatus}`.toLowerCase().includes(q));
+        const rows = overview.torrents.filter(t => !q || ([t.name, t.hash, t.category, t.mediaFlowStatus].join(' ')).toLowerCase().includes(q));
         page.querySelector('#mfTorrentTable').innerHTML = rows.length ? rows.map(x => torrentRow(x, false)).join('') : '<tr><td colspan="7" class="mf-empty">Ничего не найдено.</td></tr>';
     }
 
     function renderHistory() {
         if (!overview) return;
         const q = (page.querySelector('#mfHistorySearch').value || '').toLowerCase();
-        const rows = overview.history.filter(h => !q || `${h.status} ${h.sourcePath} ${h.destinationPath} ${h.message} ${h.tmdbId}`.toLowerCase().includes(q));
+        const rows = overview.history.filter(h => !q || ([h.status, h.sourcePath, h.destinationPath, h.message, h.tmdbId].join(' ')).toLowerCase().includes(q));
         page.querySelector('#mfHistoryTable').innerHTML = rows.length ? rows.map(x => historyRow(x, false)).join('') : '<tr><td colspan="7" class="mf-empty">История пуста.</td></tr>';
     }
 
     function renderReview() {
         if (!overview) return;
         const rows = overview.history.filter(h => h.status === 'NeedsReview');
-        page.querySelector('#mfReviewTable').innerHTML = rows.length ? rows.map(h => `<tr><td class="mf-name">${esc(h.sourcePath || '—')}<div class="mf-secondary">${esc(h.key)}</div></td><td>${esc(h.message || '—')}</td><td>${fmtDate(h.updatedAt)}</td><td><button type="button" class="mf-mini-btn primary" data-action="retry-state" data-key="${esc(h.key)}">Повторить анализ</button></td></tr>`).join('') : '<tr><td colspan="4" class="mf-empty">Нет элементов, требующих проверки.</td></tr>';
+        page.querySelector('#mfReviewTable').innerHTML = rows.length ? rows.map(h => '<tr><td class="mf-name">' + esc(h.sourcePath || '—') + '<div class="mf-secondary">' + esc(h.key) + '</div></td><td>' + esc(h.message || '—') + '</td><td>' + fmtDate(h.updatedAt) + '</td><td><button type="button" class="mf-mini-btn primary" data-action="retry-state" data-key="' + esc(h.key) + '">Повторить анализ</button></td></tr>').join('') : '<tr><td colspan="4" class="mf-empty">Нет элементов, требующих проверки.</td></tr>';
     }
 
     async function refreshOverview(showLoading) {
@@ -290,12 +310,12 @@
                 if (!confirm('Снять baseline и повторить Failed/NeedsReview для этого торрента? Уже Imported записи сохранятся.')) return;
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/reprocess');
-                toast(`Готово. Удалено записей состояния: ${r.removed}`); await refreshOverview(false);
+                toast('Готово. Удалено записей состояния: ' + r.removed); await refreshOverview(false);
             } else if (action.dataset.action === 'reset') {
-                if (!confirm(`Полностью удалить состояние MediaFlow для «${action.dataset.name || 'торрента'}»?\n\nВНИМАНИЕ: Imported записи тоже будут удалены. Если файлы уже существуют в библиотеке, повторный импорт может получить конфликт destination.`)) return;
+                if (!confirm('Полностью удалить состояние MediaFlow для «' + (action.dataset.name || 'торрента') + '»?\n\nВНИМАНИЕ: Imported записи тоже будут удалены. Если файлы уже существуют в библиотеке, повторный импорт может получить конфликт destination.')) return;
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/reset');
-                toast(`Состояние сброшено. Удалено записей: ${r.removed}`); await refreshOverview(false);
+                toast('Состояние сброшено. Удалено записей: ' + r.removed); await refreshOverview(false);
             } else if (action.dataset.action === 'retry-state') {
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/state/retry?key=' + encodeURIComponent(action.dataset.key));
@@ -336,6 +356,7 @@
     page.addEventListener('viewshow', initializePage);
 
     // Initial load fallback for Jellyfin Web 10.11.x dynamic configuration pages.
+    console.info('MediaFlow UI v0.1.8 script loaded');
     queueMicrotask(initializePage);
 })();
 </script>
