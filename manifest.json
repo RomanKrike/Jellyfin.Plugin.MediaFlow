@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.8.0",
+        "changelog": "Fix Jellyfin localization conflict in MediaFlow UI",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow/releases/download/v0.1.8/Jellyfin.Plugin.MediaFlow.v.0.1.8.zip",
+        "checksum": "FF93AD25E5C04E2D87621206B08107B7",
+        "timestamp": "2026-08-11T21:23:03Z"
+      },
+      {
         "version": "0.1.7.0",
         "changelog": "Merge branch 'main' of https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow",
         "targetAbi": "10.11.0.0",
