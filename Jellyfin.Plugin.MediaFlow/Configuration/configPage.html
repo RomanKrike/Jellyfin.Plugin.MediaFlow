@@ -3,23 +3,30 @@
 <head>
     <meta charset="utf-8">
     <title>MediaFlow</title>
+
+</head>
+<body>
+<div id="MediaFlowConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
     <style>
-        #MediaFlowConfigPage .content-primary { max-width: 1500px; }
+        #MediaFlowConfigPage { --mf-accent:#00a4dc; --mf-border:rgba(255,255,255,.10); --mf-panel:rgba(255,255,255,.045); --mf-panel-strong:rgba(255,255,255,.065); padding-bottom:3rem; }
+        #MediaFlowConfigPage .content-primary { max-width: 1500px; margin:0 auto; }
+        #MediaFlowConfigPage * { box-sizing:border-box; }
+        #MediaFlowConfigPage button, #MediaFlowConfigPage input { font:inherit; }
         #MediaFlowConfigPage .mf-header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1.3rem; }
         #MediaFlowConfigPage .mf-title { margin:0; font-size:2rem; }
         #MediaFlowConfigPage .mf-subtitle { opacity:.72; margin:.35rem 0 0; max-width:850px; }
         #MediaFlowConfigPage .mf-tabs { display:flex; gap:.4rem; flex-wrap:wrap; border-bottom:1px solid rgba(255,255,255,.12); margin:0 0 1.4rem; }
-        #MediaFlowConfigPage .mf-tab { border:0; background:transparent; color:inherit; opacity:.72; padding:.8rem 1rem; cursor:pointer; border-bottom:3px solid transparent; }
-        #MediaFlowConfigPage .mf-tab.active { opacity:1; border-bottom-color:#00a4dc; }
+        #MediaFlowConfigPage .mf-tab { appearance:none; -webkit-appearance:none; border:0; background:transparent; color:inherit; opacity:.72; padding:.8rem 1rem; cursor:pointer; border-bottom:3px solid transparent; border-radius:0; font-weight:500; }
+        #MediaFlowConfigPage .mf-tab.active { opacity:1; border-bottom-color:var(--mf-accent); color:#fff; }
         #MediaFlowConfigPage .mf-pane { display:none; }
         #MediaFlowConfigPage .mf-pane.active { display:block; }
         #MediaFlowConfigPage .mf-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:1rem; margin-bottom:1rem; }
-        #MediaFlowConfigPage .mf-card { background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:1rem 1.1rem; }
+        #MediaFlowConfigPage .mf-card { background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:1.05rem 1.15rem; box-shadow:0 1px 0 rgba(255,255,255,.02) inset; }
         #MediaFlowConfigPage .mf-metric-label { opacity:.68; font-size:.9rem; }
         #MediaFlowConfigPage .mf-metric-value { font-size:1.8rem; font-weight:600; margin-top:.25rem; }
         #MediaFlowConfigPage .mf-toolbar { display:flex; gap:.7rem; align-items:center; justify-content:space-between; flex-wrap:wrap; margin:1rem 0; }
         #MediaFlowConfigPage .mf-search { min-width:280px; max-width:520px; flex:1; }
-        #MediaFlowConfigPage .mf-table-wrap { overflow:auto; border:1px solid rgba(255,255,255,.08); border-radius:10px; }
+        #MediaFlowConfigPage .mf-table-wrap { overflow:auto; border:1px solid var(--mf-border); border-radius:12px; background:rgba(0,0,0,.12); }
         #MediaFlowConfigPage table.mf-table { width:100%; border-collapse:collapse; min-width:900px; }
         #MediaFlowConfigPage .mf-table th, #MediaFlowConfigPage .mf-table td { text-align:left; padding:.85rem .9rem; border-bottom:1px solid rgba(255,255,255,.075); vertical-align:middle; }
         #MediaFlowConfigPage .mf-table th { opacity:.65; font-weight:500; font-size:.86rem; }
@@ -32,11 +39,11 @@
         #MediaFlowConfigPage .mf-badge.err { background:rgba(230,79,79,.18); color:#ff8585; }
         #MediaFlowConfigPage .mf-badge.info { background:rgba(0,164,220,.18); color:#60c8eb; }
         #MediaFlowConfigPage .mf-progress { width:150px; height:7px; border-radius:999px; overflow:hidden; background:rgba(255,255,255,.12); margin-top:.35rem; }
-        #MediaFlowConfigPage .mf-progress > span { display:block; height:100%; background:#00a4dc; }
+        #MediaFlowConfigPage .mf-progress > span { display:block; height:100%; background:var(--mf-accent); }
         #MediaFlowConfigPage .mf-actions { display:flex; gap:.35rem; flex-wrap:wrap; }
-        #MediaFlowConfigPage .mf-mini-btn { border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.055); color:inherit; border-radius:5px; padding:.42rem .65rem; cursor:pointer; }
+        #MediaFlowConfigPage .mf-mini-btn { appearance:none; -webkit-appearance:none; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.055); color:inherit; border-radius:7px; padding:.48rem .72rem; cursor:pointer; }
         #MediaFlowConfigPage .mf-mini-btn:hover { background:rgba(255,255,255,.1); }
-        #MediaFlowConfigPage .mf-mini-btn.primary { background:#006b8f; border-color:#008ab8; }
+        #MediaFlowConfigPage .mf-mini-btn.primary { background:#087da5; border-color:#1498c5; color:#fff; }
         #MediaFlowConfigPage .mf-mini-btn.danger { border-color:rgba(230,79,79,.45); color:#ff9b9b; }
         #MediaFlowConfigPage .mf-section-title { display:flex; justify-content:space-between; align-items:center; gap:1rem; margin:1.2rem 0 .7rem; }
         #MediaFlowConfigPage .mf-section-title h3 { margin:0; }
@@ -46,11 +53,8 @@
         #MediaFlowConfigPage .mf-empty { padding:2rem; text-align:center; opacity:.65; }
         #MediaFlowConfigPage .mf-toast { display:none; position:fixed; right:1.4rem; bottom:1.4rem; z-index:10000; background:#222; border:1px solid rgba(255,255,255,.15); border-radius:8px; padding:.8rem 1rem; max-width:420px; box-shadow:0 8px 30px rgba(0,0,0,.35); }
         #MediaFlowConfigPage .mf-toast.show { display:block; }
-        @media (max-width:900px) { #MediaFlowConfigPage .mf-settings-grid { grid-template-columns:1fr; } }
+        @media (max-width:900px) { #MediaFlowConfigPage .mf-settings-grid { grid-template-columns:1fr; } #MediaFlowConfigPage .mf-title { font-size:1.65rem; } }
     </style>
-</head>
-<body>
-<div id="MediaFlowConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
     <div data-role="content">
         <div class="content-primary">
             <div class="mf-header">
@@ -312,11 +316,27 @@
         return false;
     });
 
-    page.addEventListener('pageshow', async () => {
+    let mfInitRunning = false;
+    async function initializePage() {
+        if (mfInitRunning) return;
+        mfInitRunning = true;
         Dashboard.showLoadingMsg();
-        try { await Promise.all([loadSettings(), refreshOverview(false)]); }
-        finally { Dashboard.hideLoadingMsg(); }
-    });
+        try {
+            await Promise.all([loadSettings(), refreshOverview(false)]);
+        } catch (err) {
+            console.error('MediaFlow UI initialization failed', err);
+            toast('Не удалось инициализировать интерфейс MediaFlow. Откройте консоль браузера для деталей.');
+        } finally {
+            Dashboard.hideLoadingMsg();
+            mfInitRunning = false;
+        }
+    }
+
+    page.addEventListener('pageshow', initializePage);
+    page.addEventListener('viewshow', initializePage);
+
+    // Initial load fallback for Jellyfin Web 10.11.x dynamic configuration pages.
+    queueMicrotask(initializePage);
 })();
 </script>
 </div>
