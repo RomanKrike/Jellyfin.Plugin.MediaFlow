@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.9.0",
+        "changelog": "Fix MediaFlow admin API JSON field names",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow/releases/download/v0.1.9/Jellyfin.Plugin.MediaFlow.v.0.1.9.zip",
+        "checksum": "DCC3B8231B77FFE00D69F2C410E758D3",
+        "timestamp": "2026-08-11T21:44:17Z"
+      },
+      {
         "version": "0.1.8.0",
         "changelog": "Fix Jellyfin localization conflict in MediaFlow UI",
         "targetAbi": "10.11.0.0",
