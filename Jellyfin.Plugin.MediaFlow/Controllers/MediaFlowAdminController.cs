@@ -120,7 +120,7 @@ public sealed class MediaFlowAdminController : ControllerBase
         });
     }
 
-    private static object BuildTorrentRow(QbTorrent torrent, IReadOnlyDictionary<string, ImportStateEntry> state)
+    private static MediaFlowTorrentRow BuildTorrentRow(QbTorrent torrent, IReadOnlyDictionary<string, ImportStateEntry> state)
     {
         var baseline = state.ContainsKey(BaselineTorrentPrefix + torrent.Hash);
         var prefix = torrent.Hash + ":";
@@ -159,22 +159,22 @@ public sealed class MediaFlowAdminController : ControllerBase
             mediaFlowStatus = "Downloading";
         }
 
-        return new
+        return new MediaFlowTorrentRow
         {
-            hash = torrent.Hash,
-            name = torrent.Name,
-            category = torrent.Category,
-            progress = torrent.Progress,
-            qbState = torrent.State,
-            size = torrent.Size,
-            downloaded = torrent.Downloaded,
-            addedOn = torrent.AddedOn,
-            mediaFlowStatus,
-            importedFiles = imported,
-            reviewFiles = review,
-            failedFiles = failed,
-            trackedFiles = entries.Count,
-            isBaseline = baseline
+            Hash = torrent.Hash,
+            Name = torrent.Name,
+            Category = torrent.Category,
+            Progress = torrent.Progress,
+            QbState = torrent.State,
+            Size = torrent.Size,
+            Downloaded = torrent.Downloaded,
+            AddedOn = torrent.AddedOn,
+            MediaFlowStatus = mediaFlowStatus,
+            ImportedFiles = imported,
+            ReviewFiles = review,
+            FailedFiles = failed,
+            TrackedFiles = entries.Count,
+            IsBaseline = baseline
         };
     }
 

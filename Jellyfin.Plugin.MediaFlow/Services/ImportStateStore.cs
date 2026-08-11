@@ -91,9 +91,10 @@ public sealed class ImportStateStore
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            var entries = _entries ?? throw new InvalidOperationException("MediaFlow state is not loaded.");
             var filePrefix = hash + ":";
             var baselineKey = BaselineTorrentPrefix + hash;
-            var keys = _entries!
+            var keys = entries
                 .Where(x => string.Equals(x.Key, baselineKey, StringComparison.OrdinalIgnoreCase)
                     || (x.Key.StartsWith(filePrefix, StringComparison.OrdinalIgnoreCase)
                         && (string.Equals(x.Value.Status, "Failed", StringComparison.OrdinalIgnoreCase)
@@ -103,7 +104,7 @@ public sealed class ImportStateStore
 
             foreach (var key in keys)
             {
-                _entries.Remove(key);
+                entries.Remove(key);
             }
 
             if (keys.Count > 0)
@@ -129,9 +130,10 @@ public sealed class ImportStateStore
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            var entries = _entries ?? throw new InvalidOperationException("MediaFlow state is not loaded.");
             var filePrefix = hash + ":";
             var baselineKey = BaselineTorrentPrefix + hash;
-            var keys = _entries!
+            var keys = entries
                 .Keys
                 .Where(x => string.Equals(x, baselineKey, StringComparison.OrdinalIgnoreCase)
                     || x.StartsWith(filePrefix, StringComparison.OrdinalIgnoreCase))
@@ -139,7 +141,7 @@ public sealed class ImportStateStore
 
             foreach (var key in keys)
             {
-                _entries.Remove(key);
+                entries.Remove(key);
             }
 
             if (keys.Count > 0)

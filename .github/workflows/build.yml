@@ -1,16 +1,21 @@
-name: build
+name: Build and release MediaFlow
 
 on:
-  workflow_dispatch:
-    inputs:
-      jellyfin_version:
-        description: Exact Jellyfin server version
-        required: true
-        default: '10.11.11'
-
   push:
     branches:
       - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mediaflow-main
+  cancel-in-progress: false
+
+env:
+  JELLYFIN_VERSION: '10.11.11'
+  TARGET_ABI: '10.11.0.0'
 
 jobs:
   build:
@@ -18,22 +23,187 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '9.0.x'
+
+      - name: Read plugin version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse('Directory.Build.props').getroot()
+          version = root.findtext('.//Version')
+          if not version:
+              raise SystemExit('Version not found in Directory.Build.props')
+          print(version.strip())
+          PY
+          )"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "manifest_version=${VERSION}.0" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "asset=Jellyfin.Plugin.MediaFlow.v.${VERSION}.zip" >> "$GITHUB_OUTPUT"
+          echo "Plugin version: $VERSION"
 
       - name: Publish
         run: >
           dotnet publish
           Jellyfin.Plugin.MediaFlow/Jellyfin.Plugin.MediaFlow.csproj
           -c Release
-          -p:JellyfinVersion="${{ inputs.jellyfin_version || '10.11.11' }}"
+          -p:JellyfinVersion="${{ env.JELLYFIN_VERSION }}"
 
-      - name: Upload plugin
-        uses: actions/upload-artifact@v4
+      - name: Package plugin
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/package
+          cp Jellyfin.Plugin.MediaFlow/bin/Release/net9.0/publish/Jellyfin.Plugin.MediaFlow.dll dist/package/
+          (
+            cd dist/package
+            zip -9 -q "../${{ steps.version.outputs.asset }}" Jellyfin.Plugin.MediaFlow.dll
+          )
+          CHECKSUM="$(md5sum "dist/${{ steps.version.outputs.asset }}" | awk '{print toupper($1)}')"
+          echo "checksum=$CHECKSUM" >> "$GITHUB_OUTPUT"
+          echo "checksum=$CHECKSUM"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
         with:
-          name: Jellyfin.Plugin.MediaFlow
-          path: Jellyfin.Plugin.MediaFlow/bin/Release/net9.0/publish/Jellyfin.Plugin.MediaFlow.dll
+          name: Jellyfin.Plugin.MediaFlow-${{ steps.version.outputs.version }}
+          path: dist/${{ steps.version.outputs.asset }}
+
+      - name: Check whether this version is already published
+        id: release_check
+        shell: bash
+        run: |
+          set -euo pipefail
+          PUBLISHED="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path('manifest.json').read_text(encoding='utf-8'))
+          versions = manifest[0].get('versions', []) if manifest else []
+          wanted = '${{ steps.version.outputs.manifest_version }}'
+          print('true' if any(v.get('version') == wanted for v in versions) else 'false')
+          PY
+          )"
+          if [ "$PUBLISHED" = "true" ]; then
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "Version ${{ steps.version.outputs.version }} already exists in manifest.json; build only."
+          else
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "Version ${{ steps.version.outputs.version }} is new; release will be created."
+          fi
+
+      - name: Create tag
+        if: steps.release_check.outputs.should_release == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.version.outputs.tag }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists."
+          else
+            git tag -a "$TAG" -m "MediaFlow $TAG"
+            git push origin "$TAG"
+          fi
+
+      - name: Create or update GitHub Release
+        if: steps.release_check.outputs.should_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.version.outputs.tag }}"
+          ASSET="dist/${{ steps.version.outputs.asset }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ASSET" --clobber
+          else
+            gh release create "$TAG" "$ASSET" \
+              --title "MediaFlow $TAG" \
+              --generate-notes \
+              --target "$GITHUB_SHA"
+          fi
+
+      - name: Update Jellyfin manifest
+        if: steps.release_check.outputs.should_release == 'true'
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          MANIFEST_VERSION: ${{ steps.version.outputs.manifest_version }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_ASSET: ${{ steps.version.outputs.asset }}
+          RELEASE_CHECKSUM: ${{ steps.package.outputs.checksum }}
+          TARGET_ABI: ${{ env.TARGET_ABI }}
+        run: |
+          set -euo pipefail
+
+          # Switch to the current main branch only after the release asset exists.
+          # This keeps the release tied to the exact commit that was built.
+          git fetch origin main
+          git switch --force-create mediaflow-manifest-update origin/main
+
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          path = Path('manifest.json')
+          manifest = json.loads(path.read_text(encoding='utf-8'))
+          if not manifest:
+              raise SystemExit('manifest.json is empty')
+
+          plugin = manifest[0]
+          versions = plugin.setdefault('versions', [])
+          version = os.environ['MANIFEST_VERSION']
+
+          if any(v.get('version') == version for v in versions):
+              print(f'{version} already exists in manifest; nothing to change.')
+              raise SystemExit(0)
+
+          try:
+              subject = subprocess.check_output(
+                  ['git', 'show', '-s', '--format=%s', os.environ.get('GITHUB_SHA', 'HEAD')],
+                  text=True,
+              ).strip()
+          except Exception:
+              subject = ''
+
+          if not subject:
+              subject = f"MediaFlow {os.environ['RELEASE_VERSION']} release."
+
+          versions.insert(0, {
+              'version': version,
+              'changelog': subject,
+              'targetAbi': os.environ['TARGET_ABI'],
+              'sourceUrl': (
+                  'https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow/releases/download/'
+                  f"{os.environ['RELEASE_TAG']}/{os.environ['RELEASE_ASSET']}"
+              ),
+              'checksum': os.environ['RELEASE_CHECKSUM'],
+              'timestamp': datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z'),
+          })
+
+          path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          PY
+
+          if git diff --quiet -- manifest.json; then
+            echo "manifest.json already up to date."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          git commit -m "Release MediaFlow ${{ steps.version.outputs.tag }}"
+          git push origin HEAD:main
