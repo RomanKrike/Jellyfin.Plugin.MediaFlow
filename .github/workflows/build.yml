@@ -105,7 +105,7 @@ jobs:
             echo "Version ${{ steps.version.outputs.version }} already exists in manifest.json; build only."
           else
             echo "should_release=true" >> "$GITHUB_OUTPUT"
-            echo "Version ${{ steps.version.outputs.version }} is new; release will be created."
+            echo "Version ${{ steps.version.outputs.version }} is new; release will be created/repaired."
           fi
 
       - name: Create tag
@@ -131,6 +131,7 @@ jobs:
           TAG="${{ steps.version.outputs.tag }}"
           ASSET="dist/${{ steps.version.outputs.asset }}"
           if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; refreshing asset."
             gh release upload "$TAG" "$ASSET" --clobber
           else
             gh release create "$TAG" "$ASSET" \
@@ -143,6 +144,7 @@ jobs:
         if: steps.release_check.outputs.should_release == 'true'
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
           MANIFEST_VERSION: ${{ steps.version.outputs.manifest_version }}
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
@@ -152,19 +154,42 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Switch to the current main branch only after the release asset exists.
-          # This keeps the release tied to the exact commit that was built.
-          git fetch origin main
-          git switch --force-create mediaflow-manifest-update origin/main
+          # Do not push a temporary git branch from the runner. The previous
+          # implementation could leave a perfectly valid tag/release but fail
+          # with git exit code 128 while publishing manifest.json.
+          #
+          # Instead, read and update the latest manifest on main through the
+          # GitHub Contents API. This also makes rerunning a partially completed
+          # release safe: an existing tag/release is reused and only the missing
+          # manifest entry is repaired.
 
-          python3 - <<'PY'
+          for ATTEMPT in 1 2 3; do
+            echo "Manifest update attempt $ATTEMPT"
+
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${GITHUB_REPOSITORY}/contents/manifest.json?ref=main" \
+              > /tmp/mediaflow-manifest-meta.json
+
+            python3 - <<'PY'
+          import base64
+          import json
+          from pathlib import Path
+
+          meta = json.loads(Path('/tmp/mediaflow-manifest-meta.json').read_text(encoding='utf-8'))
+          Path('/tmp/mediaflow-manifest-sha.txt').write_text(meta['sha'], encoding='utf-8')
+          raw = base64.b64decode(meta['content'])
+          Path('/tmp/mediaflow-manifest.json').write_bytes(raw)
+          PY
+
+            UPDATE_RESULT="$(python3 - <<'PY'
           import json
           import os
           import subprocess
           from datetime import datetime, timezone
           from pathlib import Path
 
-          path = Path('manifest.json')
+          path = Path('/tmp/mediaflow-manifest.json')
           manifest = json.loads(path.read_text(encoding='utf-8'))
           if not manifest:
               raise SystemExit('manifest.json is empty')
@@ -174,7 +199,7 @@ jobs:
           version = os.environ['MANIFEST_VERSION']
 
           if any(v.get('version') == version for v in versions):
-              print(f'{version} already exists in manifest; nothing to change.')
+              print('already-present')
               raise SystemExit(0)
 
           try:
@@ -200,14 +225,47 @@ jobs:
               'timestamp': datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z'),
           })
 
-          path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          path.write_text(
+              json.dumps(manifest, ensure_ascii=False, indent=2) + '\n',
+              encoding='utf-8',
+          )
+          print('updated')
           PY
+            )"
 
-          if git diff --quiet -- manifest.json; then
-            echo "manifest.json already up to date."
-            exit 0
-          fi
+            if [ "$UPDATE_RESULT" = "already-present" ]; then
+              echo "${MANIFEST_VERSION} is already present in manifest.json."
+              exit 0
+            fi
 
-          git add manifest.json
-          git commit -m "Release MediaFlow ${{ steps.version.outputs.tag }}"
-          git push origin HEAD:main
+            MANIFEST_SHA="$(cat /tmp/mediaflow-manifest-sha.txt)"
+            MANIFEST_CONTENT="$(base64 -w 0 /tmp/mediaflow-manifest.json)"
+
+            set +e
+            gh api \
+              --method PUT \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${GITHUB_REPOSITORY}/contents/manifest.json" \
+              -f message="Release MediaFlow ${RELEASE_TAG}" \
+              -f content="$MANIFEST_CONTENT" \
+              -f sha="$MANIFEST_SHA" \
+              -f branch="main" \
+              > /tmp/mediaflow-manifest-update-response.json 2>/tmp/mediaflow-manifest-update-error.txt
+            STATUS=$?
+            set -e
+
+            if [ "$STATUS" -eq 0 ]; then
+              echo "manifest.json updated successfully."
+              exit 0
+            fi
+
+            echo "Manifest update failed on attempt $ATTEMPT:"
+            cat /tmp/mediaflow-manifest-update-error.txt || true
+
+            if [ "$ATTEMPT" -lt 3 ]; then
+              sleep 2
+            fi
+          done
+
+          echo "Unable to update manifest.json after 3 attempts."
+          exit 1

@@ -1,43 +1,15 @@
-MediaFlow v0.1.12
+MediaFlow v0.1.12 release recovery fix
 
-Added torrent-level management actions in the Jellyfin admin UI:
+The plugin build and v0.1.12 GitHub Release already succeed.
+The failing part is the final manifest publication step.
 
-1. Reconcile / "Сверить"
-   - Compares qBittorrent eligible/completed files with MediaFlow state and Jellyfin destination files.
-   - Verifies existing imported hardlinks by filesystem device + inode.
-   - Reports healthy imports, missing Jellyfin files, different-file conflicts,
-     library-only files and completed qB files that are not tracked by MediaFlow.
-   - Non-destructive: the check itself does not delete/reset anything.
+This patch:
+- keeps version 0.1.12;
+- reuses an existing v0.1.12 tag and GitHub Release;
+- replaces the final runner-side git branch/commit/push with GitHub Contents API;
+- reads the latest manifest.json from main before updating it;
+- retries up to 3 times if main changes concurrently;
+- is idempotent if 0.1.12.0 is already present.
 
-2. Smart Reprocess / "Повторить поиск"
-   - Removes per-torrent baseline.
-   - Clears Failed, NeedsReview and Ignored state.
-   - Preserves healthy Imported hardlinks.
-   - Releases stale Imported state when the Jellyfin destination is missing
-     or the destination is no longer the same hardlink.
-   - Lets the worker perform TMDb search and import again.
-
-3. Delete from Jellyfin
-   - Deletes only MediaFlow destination files for the selected torrent.
-   - Does not touch qBittorrent or its source data.
-   - Verifies destination paths are inside configured MoviesRoot / ShowsRoot.
-   - Refuses to delete a destination that has become a different file while
-     the source still exists.
-   - Queues a Jellyfin library scan.
-   - Adds a per-torrent baseline marker so the worker does not immediately
-     recreate the deleted hardlinks. "Повторить поиск" removes this marker.
-
-4. Delete from qBittorrent
-   - "Удалить из qBittorrent": removes the torrent job but keeps source data.
-   - "qBittorrent + исходные файлы": removes the torrent job and qB source data.
-   - Existing Jellyfin hardlinks are not deleted by either qB action.
-
-5. UI
-   - Per-torrent actions: Сверить, Повторить поиск, Ещё…
-   - Destructive actions are grouped behind confirmations.
-   - Top button renamed to "Обновить экран" to distinguish UI refresh from reconciliation.
-
-Also includes the v0.1.11 ControllerBase.File/System.IO.File compile fix.
-
-Version: 0.1.12
-Target: Jellyfin 10.11.11 / net9.0
+After pushing this workflow patch, the next run should rebuild 0.1.12,
+refresh its release asset, and repair manifest.json.
