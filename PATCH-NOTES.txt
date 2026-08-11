@@ -1,0 +1,4 @@
+MediaFlow v0.1.9 patch
+- Makes MediaFlowTorrentRow JSON field names explicit (camelCase)
+- Fixes blank torrent names/category/qB state/progress/status in the admin UI
+- Bumps version to 0.1.9 so the existing GitHub Actions release workflow can publish it automatically
