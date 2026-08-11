@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.7.0",
+        "changelog": "Merge branch 'main' of https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow/releases/download/v0.1.7/Jellyfin.Plugin.MediaFlow.v.0.1.7.zip",
+        "checksum": "87DF3E703F9A2F6FFAECAFCD9D292012",
+        "timestamp": "2026-08-11T21:12:41Z"
+      },
+      {
         "version": "0.1.6.0",
         "changelog": "Fix automatic release tagging",
         "targetAbi": "10.11.0.0",
