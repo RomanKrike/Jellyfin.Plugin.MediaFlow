@@ -1,4 +1,10 @@
-MediaFlow v0.1.9 patch
-- Makes MediaFlowTorrentRow JSON field names explicit (camelCase)
-- Fixes blank torrent names/category/qB state/progress/status in the admin UI
-- Bumps version to 0.1.9 so the existing GitHub Actions release workflow can publish it automatically
+MediaFlow v0.1.10 patch
+
+Fix:
+- Retry is now idempotent when the destination already exists as the exact same hardlink.
+- Linux: compares filesystem device + inode.
+- Windows: compares volume serial + file ID.
+- A genuinely different destination file is still treated as a conflict and is never overwritten.
+
+Expected Silo behavior after update:
+existing source/destination hardlink -> return success -> state becomes Imported.
