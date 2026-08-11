@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.10.0",
+        "changelog": "Reconcile existing MediaFlow hardlinks on retry",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow/releases/download/v0.1.10/Jellyfin.Plugin.MediaFlow.v.0.1.10.zip",
+        "checksum": "C329A1365D76FDF815506E4FD2EF2AFE",
+        "timestamp": "2026-08-11T21:59:32Z"
+      },
+      {
         "version": "0.1.9.0",
         "changelog": "Fix MediaFlow admin API JSON field names",
         "targetAbi": "10.11.0.0",
