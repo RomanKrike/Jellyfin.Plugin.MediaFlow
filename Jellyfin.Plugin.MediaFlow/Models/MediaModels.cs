@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Jellyfin.Plugin.MediaFlow.Models;
 
 public enum MediaKind
@@ -44,6 +46,8 @@ public sealed class TmdbCandidate
 
     public double Popularity { get; set; }
 
+    public string? PosterPath { get; set; }
+
     public HashSet<string> Aliases { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     public bool? EpisodeExists { get; set; }
@@ -68,6 +72,54 @@ public sealed class ResolutionResult
     public IReadOnlyList<TmdbCandidate> Candidates { get; set; } = [];
 }
 
+public sealed class ReviewCandidateSnapshot
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
+    [JsonPropertyName("kind")]
+    public MediaKind Kind { get; set; }
+
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = string.Empty;
+
+    [JsonPropertyName("originalTitle")]
+    public string OriginalTitle { get; set; } = string.Empty;
+
+    [JsonPropertyName("year")]
+    public int? Year { get; set; }
+
+    [JsonPropertyName("posterPath")]
+    public string? PosterPath { get; set; }
+
+    [JsonPropertyName("episodeTitle")]
+    public string? EpisodeTitle { get; set; }
+
+    [JsonPropertyName("episodeAirYear")]
+    public int? EpisodeAirYear { get; set; }
+
+    [JsonPropertyName("score")]
+    public double Score { get; set; }
+
+    [JsonPropertyName("reasons")]
+    public List<string> Reasons { get; set; } = [];
+
+    public static ReviewCandidateSnapshot FromCandidate(TmdbCandidate candidate)
+        => new()
+        {
+            Id = candidate.Id,
+            Kind = candidate.Kind,
+            Title = candidate.Title,
+            OriginalTitle = candidate.OriginalTitle,
+            Year = candidate.Year,
+            PosterPath = candidate.PosterPath,
+            EpisodeTitle = candidate.EpisodeTitle,
+            EpisodeAirYear = candidate.EpisodeAirYear,
+            Score = candidate.Score,
+            Reasons = candidate.Reasons.ToList()
+        };
+}
+
 public sealed class ImportStateEntry
 {
     public string Key { get; set; } = string.Empty;
@@ -81,6 +133,14 @@ public sealed class ImportStateEntry
     public int? TmdbId { get; set; }
 
     public string? Message { get; set; }
+
+    public MediaKind? Kind { get; set; }
+
+    public int? Season { get; set; }
+
+    public int? Episode { get; set; }
+
+    public List<ReviewCandidateSnapshot> ReviewCandidates { get; set; } = [];
 
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

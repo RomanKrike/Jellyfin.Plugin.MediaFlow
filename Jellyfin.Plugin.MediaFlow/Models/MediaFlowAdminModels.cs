@@ -51,3 +51,12 @@ public sealed class MediaFlowTorrentRow
     [JsonPropertyName("isBaseline")]
     public bool IsBaseline { get; init; }
 }
+
+public sealed class MediaFlowReviewApprovalRequest
+{
+    [JsonPropertyName("key")]
+    public string Key { get; set; } = string.Empty;
+
+    [JsonPropertyName("tmdbId")]
+    public int TmdbId { get; set; }
+}

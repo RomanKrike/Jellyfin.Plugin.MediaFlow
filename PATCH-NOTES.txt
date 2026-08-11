@@ -1,10 +1,17 @@
-MediaFlow v0.1.10 patch
+MediaFlow v0.1.11
 
-Fix:
-- Retry is now idempotent when the destination already exists as the exact same hardlink.
-- Linux: compares filesystem device + inode.
-- Windows: compares volume serial + file ID.
-- A genuinely different destination file is still treated as a conflict and is never overwritten.
+Admin UI / review update:
+- Redesigned torrent list as status/progress cards.
+- Added Worker, qBittorrent and TMDb connection indicators.
+- Admin overview remains available when qBittorrent is temporarily unavailable.
+- TMDb health check is shown directly in the MediaFlow page.
+- Needs Review now stores TMDb candidates and poster paths.
+- Needs Review UI shows candidate posters, scores and resolver reasons.
+- Manual TMDb search from a review item.
+- Manual candidate approval creates/reconciles the hardlink, marks Imported and queues a Jellyfin scan.
+- Review items can be ignored; worker will not retry Ignored files until state Retry is used.
+- Existing old NeedsReview entries remain compatible; use Retry once to rebuild candidate metadata.
+- No JavaScript template literals (${...}) are used, avoiding Jellyfin configuration-page localization conflicts.
 
-Expected Silo behavior after update:
-existing source/destination hardlink -> return success -> state becomes Imported.
+Version: 0.1.11
+Target: Jellyfin 10.11.11 / net9.0

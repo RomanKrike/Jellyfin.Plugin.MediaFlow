@@ -49,8 +49,96 @@ public sealed class TmdbClient
             Title = kind == MediaKind.Episode ? x.Name ?? string.Empty : x.Title ?? string.Empty,
             OriginalTitle = kind == MediaKind.Episode ? x.OriginalName ?? string.Empty : x.OriginalTitle ?? string.Empty,
             Year = ParseYear(kind == MediaKind.Episode ? x.FirstAirDate : x.ReleaseDate),
-            Popularity = x.Popularity
+            Popularity = x.Popularity,
+            PosterPath = x.PosterPath
         }).ToList() ?? [];
+    }
+
+    public async Task<TmdbCandidate> GetCandidateByIdAsync(
+        MediaKind kind,
+        int id,
+        int? season,
+        int? episode,
+        CancellationToken cancellationToken)
+    {
+        if (kind is not MediaKind.Movie and not MediaKind.Episode)
+        {
+            throw new ArgumentOutOfRangeException(nameof(kind), "Manual TMDb match requires Movie or Episode kind.");
+        }
+
+        var config = GetConfig();
+        EnsureConfigured(config.TmdbApiKey);
+
+        var endpoint = kind == MediaKind.Episode ? $"tv/{id}" : $"movie/{id}";
+        var url = $"{endpoint}?api_key={Uri.EscapeDataString(config.TmdbApiKey)}&language={Uri.EscapeDataString(config.TmdbLanguage)}";
+        using var response = await _client.GetAsync(url, cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            throw new InvalidOperationException($"TMDb item #{id} was not found.");
+        }
+
+        response.EnsureSuccessStatusCode();
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        var payload = await JsonSerializer.DeserializeAsync<DetailsResponse>(stream, JsonOptions, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"TMDb returned an empty response for #{id}.");
+
+        var candidate = new TmdbCandidate
+        {
+            Id = payload.Id,
+            Kind = kind,
+            Title = kind == MediaKind.Episode ? payload.Name ?? string.Empty : payload.Title ?? string.Empty,
+            OriginalTitle = kind == MediaKind.Episode ? payload.OriginalName ?? string.Empty : payload.OriginalTitle ?? string.Empty,
+            Year = ParseYear(kind == MediaKind.Episode ? payload.FirstAirDate : payload.ReleaseDate),
+            Popularity = payload.Popularity,
+            PosterPath = payload.PosterPath
+        };
+
+        if (kind == MediaKind.Episode)
+        {
+            if (!season.HasValue || !episode.HasValue)
+            {
+                throw new InvalidOperationException("Episode review state does not contain season/episode numbers.");
+            }
+
+            var episodeInfo = await GetEpisodeInfoAsync(id, season.Value, episode.Value, cancellationToken).ConfigureAwait(false);
+            candidate.EpisodeExists = episodeInfo.Exists;
+            candidate.EpisodeTitle = episodeInfo.Title;
+            candidate.EpisodeAirYear = episodeInfo.AirYear;
+            if (!episodeInfo.Exists)
+            {
+                throw new InvalidOperationException($"TMDb series #{id} does not contain S{season.Value:00}E{episode.Value:00}.");
+            }
+        }
+
+        return candidate;
+    }
+
+    public async Task<TmdbHealthResult> CheckHealthAsync(CancellationToken cancellationToken)
+    {
+        var config = GetConfig();
+        if (string.IsNullOrWhiteSpace(config.TmdbApiKey))
+        {
+            return new TmdbHealthResult(false, "API key is not configured.");
+        }
+
+        try
+        {
+            using var response = await _client.GetAsync(
+                $"configuration?api_key={Uri.EscapeDataString(config.TmdbApiKey)}",
+                cancellationToken).ConfigureAwait(false);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return new TmdbHealthResult(true, "Connected");
+            }
+
+            return new TmdbHealthResult(false, $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}".Trim());
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogDebug(ex, "TMDb health check failed.");
+            return new TmdbHealthResult(false, ex.Message);
+        }
     }
 
     public async Task EnrichAliasesAsync(TmdbCandidate candidate, CancellationToken cancellationToken)
@@ -139,6 +227,8 @@ public sealed class TmdbClient
 
     public sealed record TmdbEpisodeInfo(bool Exists, string? Title, int? AirYear);
 
+    public sealed record TmdbHealthResult(bool Connected, string Message);
+
     private static void CollectNames(JsonElement element, HashSet<string> output)
     {
         switch (element.ValueKind)
@@ -214,6 +304,39 @@ public sealed class TmdbClient
 
         [JsonPropertyName("popularity")]
         public double Popularity { get; set; }
+
+        [JsonPropertyName("poster_path")]
+        public string? PosterPath { get; set; }
+    }
+
+    private sealed class DetailsResponse
+    {
+        [JsonPropertyName("id")]
+        public int Id { get; set; }
+
+        [JsonPropertyName("title")]
+        public string? Title { get; set; }
+
+        [JsonPropertyName("original_title")]
+        public string? OriginalTitle { get; set; }
+
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
+
+        [JsonPropertyName("original_name")]
+        public string? OriginalName { get; set; }
+
+        [JsonPropertyName("release_date")]
+        public string? ReleaseDate { get; set; }
+
+        [JsonPropertyName("first_air_date")]
+        public string? FirstAirDate { get; set; }
+
+        [JsonPropertyName("popularity")]
+        public double Popularity { get; set; }
+
+        [JsonPropertyName("poster_path")]
+        public string? PosterPath { get; set; }
     }
 
     private sealed class EpisodeResponse

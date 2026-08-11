@@ -120,7 +120,7 @@ public sealed class MediaFlowWorker : BackgroundService
                 var existing = await _state.GetAsync(key, cancellationToken).ConfigureAwait(false);
                 if (existing is not null)
                 {
-                    if (existing.Status is "Imported" or "NeedsReview")
+                    if (existing.Status is "Imported" or "NeedsReview" or "Ignored")
                     {
                         continue;
                     }
@@ -151,7 +151,14 @@ public sealed class MediaFlowWorker : BackgroundService
                             Key = key,
                             Status = "NeedsReview",
                             SourcePath = sourcePath,
-                            Message = resolution.Reason + " " + top
+                            Message = resolution.Reason + " " + top,
+                            Kind = parsed.Kind,
+                            Season = parsed.Season,
+                            Episode = parsed.Episode,
+                            ReviewCandidates = resolution.Candidates
+                                .Take(6)
+                                .Select(ReviewCandidateSnapshot.FromCandidate)
+                                .ToList()
                         }, cancellationToken).ConfigureAwait(false);
                         _logger.LogWarning("NEEDS REVIEW: {File}. {Reason}. Candidates: {Candidates}", file.Name, resolution.Reason, top);
                         continue;
