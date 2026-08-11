@@ -1,108 +1,323 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="utf-8">
     <title>MediaFlow</title>
+    <style>
+        #MediaFlowConfigPage .content-primary { max-width: 1500px; }
+        #MediaFlowConfigPage .mf-header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1.3rem; }
+        #MediaFlowConfigPage .mf-title { margin:0; font-size:2rem; }
+        #MediaFlowConfigPage .mf-subtitle { opacity:.72; margin:.35rem 0 0; max-width:850px; }
+        #MediaFlowConfigPage .mf-tabs { display:flex; gap:.4rem; flex-wrap:wrap; border-bottom:1px solid rgba(255,255,255,.12); margin:0 0 1.4rem; }
+        #MediaFlowConfigPage .mf-tab { border:0; background:transparent; color:inherit; opacity:.72; padding:.8rem 1rem; cursor:pointer; border-bottom:3px solid transparent; }
+        #MediaFlowConfigPage .mf-tab.active { opacity:1; border-bottom-color:#00a4dc; }
+        #MediaFlowConfigPage .mf-pane { display:none; }
+        #MediaFlowConfigPage .mf-pane.active { display:block; }
+        #MediaFlowConfigPage .mf-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:1rem; margin-bottom:1rem; }
+        #MediaFlowConfigPage .mf-card { background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:1rem 1.1rem; }
+        #MediaFlowConfigPage .mf-metric-label { opacity:.68; font-size:.9rem; }
+        #MediaFlowConfigPage .mf-metric-value { font-size:1.8rem; font-weight:600; margin-top:.25rem; }
+        #MediaFlowConfigPage .mf-toolbar { display:flex; gap:.7rem; align-items:center; justify-content:space-between; flex-wrap:wrap; margin:1rem 0; }
+        #MediaFlowConfigPage .mf-search { min-width:280px; max-width:520px; flex:1; }
+        #MediaFlowConfigPage .mf-table-wrap { overflow:auto; border:1px solid rgba(255,255,255,.08); border-radius:10px; }
+        #MediaFlowConfigPage table.mf-table { width:100%; border-collapse:collapse; min-width:900px; }
+        #MediaFlowConfigPage .mf-table th, #MediaFlowConfigPage .mf-table td { text-align:left; padding:.85rem .9rem; border-bottom:1px solid rgba(255,255,255,.075); vertical-align:middle; }
+        #MediaFlowConfigPage .mf-table th { opacity:.65; font-weight:500; font-size:.86rem; }
+        #MediaFlowConfigPage .mf-table tr:last-child td { border-bottom:0; }
+        #MediaFlowConfigPage .mf-name { max-width:520px; }
+        #MediaFlowConfigPage .mf-secondary { opacity:.6; font-size:.82rem; margin-top:.22rem; word-break:break-all; }
+        #MediaFlowConfigPage .mf-badge { display:inline-block; border-radius:999px; padding:.22rem .55rem; font-size:.78rem; line-height:1.25; background:rgba(255,255,255,.11); }
+        #MediaFlowConfigPage .mf-badge.ok { background:rgba(41,190,105,.18); color:#69d998; }
+        #MediaFlowConfigPage .mf-badge.warn { background:rgba(241,179,52,.18); color:#f1c15b; }
+        #MediaFlowConfigPage .mf-badge.err { background:rgba(230,79,79,.18); color:#ff8585; }
+        #MediaFlowConfigPage .mf-badge.info { background:rgba(0,164,220,.18); color:#60c8eb; }
+        #MediaFlowConfigPage .mf-progress { width:150px; height:7px; border-radius:999px; overflow:hidden; background:rgba(255,255,255,.12); margin-top:.35rem; }
+        #MediaFlowConfigPage .mf-progress > span { display:block; height:100%; background:#00a4dc; }
+        #MediaFlowConfigPage .mf-actions { display:flex; gap:.35rem; flex-wrap:wrap; }
+        #MediaFlowConfigPage .mf-mini-btn { border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.055); color:inherit; border-radius:5px; padding:.42rem .65rem; cursor:pointer; }
+        #MediaFlowConfigPage .mf-mini-btn:hover { background:rgba(255,255,255,.1); }
+        #MediaFlowConfigPage .mf-mini-btn.primary { background:#006b8f; border-color:#008ab8; }
+        #MediaFlowConfigPage .mf-mini-btn.danger { border-color:rgba(230,79,79,.45); color:#ff9b9b; }
+        #MediaFlowConfigPage .mf-section-title { display:flex; justify-content:space-between; align-items:center; gap:1rem; margin:1.2rem 0 .7rem; }
+        #MediaFlowConfigPage .mf-section-title h3 { margin:0; }
+        #MediaFlowConfigPage .mf-settings-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:1rem; }
+        #MediaFlowConfigPage .mf-settings-grid h3 { margin-top:0; }
+        #MediaFlowConfigPage .mf-statusline { display:flex; gap:.7rem; align-items:center; flex-wrap:wrap; }
+        #MediaFlowConfigPage .mf-empty { padding:2rem; text-align:center; opacity:.65; }
+        #MediaFlowConfigPage .mf-toast { display:none; position:fixed; right:1.4rem; bottom:1.4rem; z-index:10000; background:#222; border:1px solid rgba(255,255,255,.15); border-radius:8px; padding:.8rem 1rem; max-width:420px; box-shadow:0 8px 30px rgba(0,0,0,.35); }
+        #MediaFlowConfigPage .mf-toast.show { display:block; }
+        @media (max-width:900px) { #MediaFlowConfigPage .mf-settings-grid { grid-template-columns:1fr; } }
+    </style>
 </head>
 <body>
 <div id="MediaFlowConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
     <div data-role="content">
         <div class="content-primary">
-            <form id="MediaFlowConfigForm">
-                <h2>MediaFlow</h2>
-                <p>Imports individually completed qBittorrent video files into Jellyfin using smart TMDb matching and hardlinks.</p>
+            <div class="mf-header">
+                <div>
+                    <h2 class="mf-title">MediaFlow</h2>
+                    <p class="mf-subtitle">Управление автоматическим импортом из qBittorrent в Jellyfin: очередь, состояния, повторная обработка и настройки.</p>
+                </div>
+                <div class="mf-statusline">
+                    <span id="mfWorkerBadge" class="mf-badge">Worker</span>
+                    <button id="mfRefreshTop" type="button" is="emby-button" class="raised emby-button"><span>Обновить</span></button>
+                </div>
+            </div>
 
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label class="emby-checkbox-label"><input id="Enabled" type="checkbox" is="emby-checkbox" /><span>Enable MediaFlow worker</span></label>
+            <div class="mf-tabs">
+                <button class="mf-tab active" type="button" data-tab="overview">Обзор</button>
+                <button class="mf-tab" type="button" data-tab="queue">Торренты</button>
+                <button class="mf-tab" type="button" data-tab="review">Нужно проверить</button>
+                <button class="mf-tab" type="button" data-tab="history">История</button>
+                <button class="mf-tab" type="button" data-tab="settings">Настройки</button>
+            </div>
+
+            <section id="mfPane-overview" class="mf-pane active">
+                <div class="mf-grid">
+                    <div class="mf-card"><div class="mf-metric-label">Worker</div><div id="mfMetricWorker" class="mf-metric-value">—</div></div>
+                    <div class="mf-card"><div class="mf-metric-label">Активные</div><div id="mfMetricActive" class="mf-metric-value">—</div></div>
+                    <div class="mf-card"><div class="mf-metric-label">Baseline</div><div id="mfMetricBaseline" class="mf-metric-value">—</div></div>
+                    <div class="mf-card"><div class="mf-metric-label">Нужно проверить</div><div id="mfMetricReview" class="mf-metric-value">—</div></div>
+                    <div class="mf-card"><div class="mf-metric-label">Ошибки</div><div id="mfMetricFailed" class="mf-metric-value">—</div></div>
+                    <div class="mf-card"><div class="mf-metric-label">Импортировано файлов</div><div id="mfMetricImported" class="mf-metric-value">—</div></div>
                 </div>
 
-                <h3>Safety / testing</h3>
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label class="emby-checkbox-label"><input id="DryRunMode" type="checkbox" is="emby-checkbox" /><span>Dry run mode</span></label>
-                    <div class="fieldDescription">No hardlinks, library scans, state changes, or qBittorrent priority changes. Use this first.</div>
-                </div>
-                <div class="inputContainer">
-                    <label class="inputLabel" for="DryRunTorrentFilter">Dry-run torrent hash or unique name fragment</label>
-                    <input id="DryRunTorrentFilter" type="text" is="emby-input" />
-                    <div class="fieldDescription">Required in Dry Run. Exact hash is preferred; a unique case-insensitive name fragment also works. If multiple torrents match, nothing is processed.</div>
-                </div>
-                <div class="inputContainer">
-                    <label class="inputLabel" for="DryRunMaxFiles">Dry-run max completed video files</label>
-                    <input id="DryRunMaxFiles" type="number" min="1" max="20" is="emby-input" />
-                    <div class="fieldDescription">Limits TMDb requests for season/series packs while testing. Default: 3.</div>
-                </div>
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label class="emby-checkbox-label"><input id="BaselineExistingTorrentsOnFirstRun" type="checkbox" is="emby-checkbox" /><span>Ignore torrents that already exist on first live run</span></label>
-                    <div class="fieldDescription">Recommended. On the first non-dry-run cycle, all current movie/TV torrents are marked as baseline and never imported or reprioritized. Only torrents added later are automated.</div>
-                </div>
+                <div class="mf-section-title"><h3>Последние торренты</h3><button type="button" class="mf-mini-btn" data-go-tab="queue">Показать все</button></div>
+                <div class="mf-table-wrap"><table class="mf-table"><thead><tr><th>Название</th><th>Прогресс</th><th>MediaFlow</th><th>Файлы</th><th>Действия</th></tr></thead><tbody id="mfOverviewTorrents"></tbody></table></div>
 
-                <h3>qBittorrent</h3>
-                <div class="inputContainer"><label class="inputLabel" for="QbittorrentUrl">URL</label><input id="QbittorrentUrl" type="text" is="emby-input" /><div class="fieldDescription">Prefer the direct LAN/container URL, not the public reverse proxy.</div></div>
-                <div class="inputContainer"><label class="inputLabel" for="QbittorrentUsername">Username</label><input id="QbittorrentUsername" type="text" is="emby-input" /></div>
-                <div class="inputContainer"><label class="inputLabel" for="QbittorrentPassword">Password</label><input id="QbittorrentPassword" type="password" is="emby-input" /></div>
-                <div class="inputContainer"><label class="inputLabel" for="QbittorrentMovieCategory">Movie category</label><input id="QbittorrentMovieCategory" type="text" is="emby-input" /><div class="fieldDescription">qBittorrent category treated as movies. Default: movie.</div></div>
-                <div class="inputContainer"><label class="inputLabel" for="QbittorrentTvCategory">TV category</label><input id="QbittorrentTvCategory" type="text" is="emby-input" /><div class="fieldDescription">qBittorrent category treated as TV episodes. Default: tv. Strict sequential mode is only applied to this category.</div></div>
-                <div class="fieldDescription">Only the movie and TV categories above are processed. Other categories are ignored.</div>
-                <div class="inputContainer"><label class="inputLabel" for="QbittorrentPathPrefix">qBittorrent path prefix</label><input id="QbittorrentPathPrefix" type="text" is="emby-input" /></div>
-                <div class="inputContainer"><label class="inputLabel" for="LocalDownloadsPathPrefix">Local/Jellyfin path prefix</label><input id="LocalDownloadsPathPrefix" type="text" is="emby-input" /></div>
-                <div class="checkboxContainer checkboxContainer-withDescription"><label class="emby-checkbox-label"><input id="ManageSequentialEpisodes" type="checkbox" is="emby-checkbox" /><span>Strict sequential episode downloading</span></label><div class="fieldDescription">Live mode only. For new torrents in the TV category, sets the next episode to max priority and later episode video files to Do not download.</div></div>
+                <div class="mf-section-title"><h3>Последняя история</h3><button type="button" class="mf-mini-btn" data-go-tab="history">Показать все</button></div>
+                <div class="mf-table-wrap"><table class="mf-table"><thead><tr><th>Статус</th><th>Источник</th><th>TMDb</th><th>Обновлено</th></tr></thead><tbody id="mfOverviewHistory"></tbody></table></div>
+            </section>
 
-                <h3>TMDb resolver</h3>
-                <div class="inputContainer"><label class="inputLabel" for="TmdbApiKey">TMDb API key (v3)</label><input id="TmdbApiKey" type="password" is="emby-input" /></div>
-                <div class="inputContainer"><label class="inputLabel" for="TmdbLanguage">Language</label><input id="TmdbLanguage" type="text" is="emby-input" /></div>
-                <div class="inputContainer"><label class="inputLabel" for="TmdbFallbackLanguage">Fallback language</label><input id="TmdbFallbackLanguage" type="text" is="emby-input" /></div>
-                <div class="inputContainer"><label class="inputLabel" for="AutoMatchScore">Auto-match score</label><input id="AutoMatchScore" type="number" step="0.1" min="0" max="100" is="emby-input" /></div>
-                <div class="inputContainer"><label class="inputLabel" for="MinimumScoreGap">Minimum gap to second candidate</label><input id="MinimumScoreGap" type="number" step="0.1" min="0" max="100" is="emby-input" /></div>
+            <section id="mfPane-queue" class="mf-pane">
+                <div class="mf-toolbar">
+                    <input id="mfTorrentSearch" class="mf-search" type="text" placeholder="Поиск по названию, hash или категории" is="emby-input" />
+                    <div class="mf-secondary">«Повторить» снимает baseline и сбрасывает Failed/NeedsReview, но сохраняет уже Imported.</div>
+                </div>
+                <div class="mf-table-wrap"><table class="mf-table"><thead><tr><th>Название</th><th>Категория</th><th>qBittorrent</th><th>Прогресс</th><th>MediaFlow</th><th>Файлы</th><th>Действия</th></tr></thead><tbody id="mfTorrentTable"></tbody></table></div>
+            </section>
 
-                <h3>Libraries</h3>
-                <div class="inputContainer"><label class="inputLabel" for="MoviesRoot">Movies root</label><input id="MoviesRoot" type="text" is="emby-input" /></div>
-                <div class="inputContainer"><label class="inputLabel" for="ShowsRoot">Shows root</label><input id="ShowsRoot" type="text" is="emby-input" /></div>
-                <div class="fieldDescription">Hardlinks require the download source and target library to be on the same filesystem.</div>
+            <section id="mfPane-review" class="mf-pane">
+                <div class="mf-section-title"><h3>Нужно проверить</h3><div class="mf-secondary">Пока доступен безопасный Retry. Ручной выбор TMDb добавим следующим этапом.</div></div>
+                <div class="mf-table-wrap"><table class="mf-table"><thead><tr><th>Источник</th><th>Причина</th><th>Обновлено</th><th>Действия</th></tr></thead><tbody id="mfReviewTable"></tbody></table></div>
+            </section>
 
-                <h3>Worker</h3>
-                <div class="inputContainer"><label class="inputLabel" for="PollIntervalSeconds">Polling interval, seconds</label><input id="PollIntervalSeconds" type="number" min="3" max="300" is="emby-input" /></div>
-                <div class="inputContainer"><label class="inputLabel" for="MinimumVideoSizeMb">Minimum video size, MB</label><input id="MinimumVideoSizeMb" type="number" min="0" is="emby-input" /></div>
-                <button is="emby-button" type="submit" class="raised button-submit block emby-button"><span>Save</span></button>
-            </form>
+            <section id="mfPane-history" class="mf-pane">
+                <div class="mf-toolbar"><input id="mfHistorySearch" class="mf-search" type="text" placeholder="Поиск в истории" is="emby-input" /></div>
+                <div class="mf-table-wrap"><table class="mf-table"><thead><tr><th>Статус</th><th>Источник</th><th>Назначение</th><th>TMDb</th><th>Сообщение</th><th>Обновлено</th><th></th></tr></thead><tbody id="mfHistoryTable"></tbody></table></div>
+            </section>
+
+            <section id="mfPane-settings" class="mf-pane">
+                <form id="MediaFlowConfigForm">
+                    <div class="mf-settings-grid">
+                        <div class="mf-card">
+                            <h3>Общие</h3>
+                            <div class="checkboxContainer checkboxContainer-withDescription"><label class="emby-checkbox-label"><input id="Enabled" type="checkbox" is="emby-checkbox" /><span>Enable MediaFlow worker</span></label></div>
+                            <div class="checkboxContainer checkboxContainer-withDescription"><label class="emby-checkbox-label"><input id="BaselineExistingTorrentsOnFirstRun" type="checkbox" is="emby-checkbox" /><span>Ignore torrents that already exist on first live run</span></label><div class="fieldDescription">Существующие торренты становятся baseline; автоматизация применяется только к новым.</div></div>
+                            <div class="checkboxContainer checkboxContainer-withDescription"><label class="emby-checkbox-label"><input id="ManageSequentialEpisodes" type="checkbox" is="emby-checkbox" /><span>Strict sequential episode downloading</span></label><div class="fieldDescription">Только категория TV.</div></div>
+                            <div class="inputContainer"><label class="inputLabel" for="PollIntervalSeconds">Polling interval, seconds</label><input id="PollIntervalSeconds" type="number" min="3" max="300" is="emby-input" /></div>
+                            <div class="inputContainer"><label class="inputLabel" for="MinimumVideoSizeMb">Minimum video size, MB</label><input id="MinimumVideoSizeMb" type="number" min="0" is="emby-input" /></div>
+                            <div class="inputContainer"><label class="inputLabel" for="RetryFailedAfterMinutes">Retry failed after, minutes</label><input id="RetryFailedAfterMinutes" type="number" min="1" max="1440" is="emby-input" /></div>
+                        </div>
+
+                        <div class="mf-card">
+                            <h3>Safety / Dry Run</h3>
+                            <div class="checkboxContainer checkboxContainer-withDescription"><label class="emby-checkbox-label"><input id="DryRunMode" type="checkbox" is="emby-checkbox" /><span>Dry run mode</span></label><div class="fieldDescription">Без hardlink, scan, state writes и изменения priority.</div></div>
+                            <div class="inputContainer"><label class="inputLabel" for="DryRunTorrentFilter">Torrent hash or unique name fragment</label><input id="DryRunTorrentFilter" type="text" is="emby-input" /></div>
+                            <div class="inputContainer"><label class="inputLabel" for="DryRunMaxFiles">Max completed video files</label><input id="DryRunMaxFiles" type="number" min="1" max="20" is="emby-input" /></div>
+                        </div>
+
+                        <div class="mf-card">
+                            <h3>qBittorrent</h3>
+                            <div class="inputContainer"><label class="inputLabel" for="QbittorrentUrl">URL</label><input id="QbittorrentUrl" type="text" is="emby-input" /></div>
+                            <div class="inputContainer"><label class="inputLabel" for="QbittorrentUsername">Username</label><input id="QbittorrentUsername" type="text" is="emby-input" /></div>
+                            <div class="inputContainer"><label class="inputLabel" for="QbittorrentPassword">Password</label><input id="QbittorrentPassword" type="password" is="emby-input" /></div>
+                            <div class="inputContainer"><label class="inputLabel" for="QbittorrentMovieCategory">Movie category</label><input id="QbittorrentMovieCategory" type="text" is="emby-input" /></div>
+                            <div class="inputContainer"><label class="inputLabel" for="QbittorrentTvCategory">TV category</label><input id="QbittorrentTvCategory" type="text" is="emby-input" /></div>
+                            <div class="inputContainer"><label class="inputLabel" for="QbittorrentPathPrefix">qBittorrent path prefix</label><input id="QbittorrentPathPrefix" type="text" is="emby-input" /></div>
+                            <div class="inputContainer"><label class="inputLabel" for="LocalDownloadsPathPrefix">Local/Jellyfin path prefix</label><input id="LocalDownloadsPathPrefix" type="text" is="emby-input" /></div>
+                            <div class="checkboxContainer checkboxContainer-withDescription"><label class="emby-checkbox-label"><input id="QbittorrentIgnoreTlsErrors" type="checkbox" is="emby-checkbox" /><span>Ignore qBittorrent TLS errors</span></label></div>
+                        </div>
+
+                        <div class="mf-card">
+                            <h3>TMDb resolver</h3>
+                            <div class="inputContainer"><label class="inputLabel" for="TmdbApiKey">TMDb API key (v3)</label><input id="TmdbApiKey" type="password" is="emby-input" /></div>
+                            <div class="inputContainer"><label class="inputLabel" for="TmdbLanguage">Language</label><input id="TmdbLanguage" type="text" is="emby-input" /></div>
+                            <div class="inputContainer"><label class="inputLabel" for="TmdbFallbackLanguage">Fallback language</label><input id="TmdbFallbackLanguage" type="text" is="emby-input" /></div>
+                            <div class="inputContainer"><label class="inputLabel" for="AutoMatchScore">Auto-match score</label><input id="AutoMatchScore" type="number" step="0.1" min="0" max="100" is="emby-input" /></div>
+                            <div class="inputContainer"><label class="inputLabel" for="MinimumScoreGap">Minimum gap to second candidate</label><input id="MinimumScoreGap" type="number" step="0.1" min="0" max="100" is="emby-input" /></div>
+                        </div>
+
+                        <div class="mf-card">
+                            <h3>Libraries</h3>
+                            <div class="inputContainer"><label class="inputLabel" for="MoviesRoot">Movies root</label><input id="MoviesRoot" type="text" is="emby-input" /></div>
+                            <div class="inputContainer"><label class="inputLabel" for="ShowsRoot">Shows root</label><input id="ShowsRoot" type="text" is="emby-input" /></div>
+                            <div class="fieldDescription">Hardlinks требуют общий filesystem для source и destination.</div>
+                        </div>
+
+                        <div class="mf-card">
+                            <h3>Advanced</h3>
+                            <div class="inputContainer"><label class="inputLabel" for="VideoExtensions">Video extensions</label><input id="VideoExtensions" type="text" is="emby-input" /></div>
+                        </div>
+                    </div>
+                    <div style="margin-top:1rem"><button is="emby-button" type="submit" class="raised button-submit emby-button"><span>Сохранить настройки</span></button></div>
+                </form>
+            </section>
+
+            <div id="mfToast" class="mf-toast"></div>
         </div>
     </div>
 <script type="text/javascript">
-const MediaFlowConfig = { pluginUniqueId: '9c98f2dc-f6d7-4f41-9e7f-84f6cf25d8bb' };
-const ids = [
-    'QbittorrentUrl','QbittorrentUsername','QbittorrentPassword','QbittorrentMovieCategory','QbittorrentTvCategory','QbittorrentPathPrefix','LocalDownloadsPathPrefix',
-    'TmdbApiKey','TmdbLanguage','TmdbFallbackLanguage','MoviesRoot','ShowsRoot','PollIntervalSeconds','AutoMatchScore','MinimumScoreGap','MinimumVideoSizeMb',
-    'DryRunTorrentFilter','DryRunMaxFiles'
-];
-document.querySelector('#MediaFlowConfigPage').addEventListener('pageshow', function () {
-    Dashboard.showLoadingMsg();
-    ApiClient.getPluginConfiguration(MediaFlowConfig.pluginUniqueId).then(function (config) {
-        document.querySelector('#Enabled').checked = config.Enabled;
-        document.querySelector('#ManageSequentialEpisodes').checked = config.ManageSequentialEpisodes;
-        document.querySelector('#BaselineExistingTorrentsOnFirstRun').checked = config.BaselineExistingTorrentsOnFirstRun !== false;
-        document.querySelector('#DryRunMode').checked = config.DryRunMode !== false;
-        ids.forEach(id => { document.querySelector('#' + id).value = config[id] ?? ''; });
-        Dashboard.hideLoadingMsg();
+(() => {
+    const page = document.querySelector('#MediaFlowConfigPage');
+    if (!page) return;
+    const pluginUniqueId = '9c98f2dc-f6d7-4f41-9e7f-84f6cf25d8bb';
+    const textIds = [
+        'QbittorrentUrl','QbittorrentUsername','QbittorrentPassword','QbittorrentMovieCategory','QbittorrentTvCategory','QbittorrentPathPrefix','LocalDownloadsPathPrefix',
+        'TmdbApiKey','TmdbLanguage','TmdbFallbackLanguage','MoviesRoot','ShowsRoot','PollIntervalSeconds','AutoMatchScore','MinimumScoreGap','MinimumVideoSizeMb',
+        'DryRunTorrentFilter','DryRunMaxFiles','RetryFailedAfterMinutes','VideoExtensions'
+    ];
+    const checkIds = ['Enabled','ManageSequentialEpisodes','BaselineExistingTorrentsOnFirstRun','DryRunMode','QbittorrentIgnoreTlsErrors'];
+    let overview = null;
+
+    const api = (method, path) => window.ApiClient.ajax({ type: method, url: window.ApiClient.getUrl(path), dataType: 'json' });
+    const esc = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const fmtBytes = bytes => {
+        const n = Number(bytes || 0); if (!n) return '—';
+        const units = ['B','KB','MB','GB','TB']; let x=n, i=0; while (x>=1024 && i<units.length-1) { x/=1024; i++; }
+        return `${x.toFixed(i >= 3 ? 1 : 0)} ${units[i]}`;
+    };
+    const fmtDate = value => { if (!value) return '—'; try { return new Date(value).toLocaleString('ru-RU'); } catch { return String(value); } };
+    const statusClass = status => status === 'Imported' ? 'ok' : status === 'Failed' ? 'err' : status === 'NeedsReview' ? 'warn' : status === 'Baseline' ? '' : 'info';
+    const statusLabel = status => ({Imported:'Imported',Failed:'Ошибка',NeedsReview:'Нужно проверить',Baseline:'Baseline',Downloading:'Загрузка',Ready:'Готов',Ignored:'Ignored'}[status] || status || '—');
+
+    function toast(message) {
+        const el = page.querySelector('#mfToast'); el.textContent = message; el.classList.add('show');
+        clearTimeout(el._timer); el._timer = setTimeout(() => el.classList.remove('show'), 3500);
+    }
+
+    function setTab(name) {
+        page.querySelectorAll('.mf-tab').forEach(x => x.classList.toggle('active', x.dataset.tab === name));
+        page.querySelectorAll('.mf-pane').forEach(x => x.classList.toggle('active', x.id === 'mfPane-' + name));
+    }
+
+    function torrentRow(t, compact) {
+        const pct = Math.max(0, Math.min(100, Number(t.progress || 0) * 100));
+        const files = `${t.importedFiles || 0} imported${t.reviewFiles ? ` · ${t.reviewFiles} review` : ''}${t.failedFiles ? ` · ${t.failedFiles} failed` : ''}`;
+        const actions = `<div class="mf-actions">
+            <button type="button" class="mf-mini-btn primary" data-action="reprocess" data-hash="${esc(t.hash)}">Повторить</button>
+            <button type="button" class="mf-mini-btn danger" data-action="reset" data-hash="${esc(t.hash)}" data-name="${esc(t.name)}">Сбросить</button>
+        </div>`;
+        if (compact) return `<tr><td class="mf-name"><strong>${esc(t.name)}</strong><div class="mf-secondary">${esc(t.category)} · ${esc(t.hash)}</div></td><td>${pct.toFixed(1)}%<div class="mf-progress"><span style="width:${pct}%"></span></div></td><td><span class="mf-badge ${statusClass(t.mediaFlowStatus)}">${esc(statusLabel(t.mediaFlowStatus))}</span></td><td>${esc(files)}</td><td>${actions}</td></tr>`;
+        return `<tr><td class="mf-name"><strong>${esc(t.name)}</strong><div class="mf-secondary">${esc(t.hash)}</div></td><td>${esc(t.category)}</td><td>${esc(t.qbState || '—')}<div class="mf-secondary">${fmtBytes(t.downloaded)} / ${fmtBytes(t.size)}</div></td><td>${pct.toFixed(1)}%<div class="mf-progress"><span style="width:${pct}%"></span></div></td><td><span class="mf-badge ${statusClass(t.mediaFlowStatus)}">${esc(statusLabel(t.mediaFlowStatus))}</span></td><td>${esc(files)}</td><td>${actions}</td></tr>`;
+    }
+
+    function historyRow(h, compact) {
+        if (compact) return `<tr><td><span class="mf-badge ${statusClass(h.status)}">${esc(statusLabel(h.status))}</span></td><td class="mf-name">${esc(h.sourcePath || '—')}<div class="mf-secondary">${esc(h.key)}</div></td><td>${h.tmdbId ? '#' + esc(h.tmdbId) : '—'}</td><td>${fmtDate(h.updatedAt)}</td></tr>`;
+        const retry = (h.status === 'Failed' || h.status === 'NeedsReview') ? `<button type="button" class="mf-mini-btn" data-action="retry-state" data-key="${esc(h.key)}">Retry</button>` : '';
+        return `<tr><td><span class="mf-badge ${statusClass(h.status)}">${esc(statusLabel(h.status))}</span></td><td class="mf-name">${esc(h.sourcePath || '—')}<div class="mf-secondary">${esc(h.key)}</div></td><td class="mf-secondary">${esc(h.destinationPath || '—')}</td><td>${h.tmdbId ? '#' + esc(h.tmdbId) : '—'}</td><td>${esc(h.message || '—')}</td><td>${fmtDate(h.updatedAt)}</td><td>${retry}</td></tr>`;
+    }
+
+    function renderOverview() {
+        if (!overview) return;
+        page.querySelector('#mfWorkerBadge').textContent = overview.workerEnabled ? (overview.dryRunMode ? 'Worker · Dry Run' : 'Worker · ON') : 'Worker · OFF';
+        page.querySelector('#mfWorkerBadge').className = 'mf-badge ' + (overview.workerEnabled ? (overview.dryRunMode ? 'warn' : 'ok') : '');
+        page.querySelector('#mfMetricWorker').textContent = overview.workerEnabled ? (overview.dryRunMode ? 'Dry Run' : 'ON') : 'OFF';
+        page.querySelector('#mfMetricActive').textContent = overview.activeCount;
+        page.querySelector('#mfMetricBaseline').textContent = overview.baselineCount;
+        page.querySelector('#mfMetricReview').textContent = overview.needsReviewCount;
+        page.querySelector('#mfMetricFailed').textContent = overview.failedCount;
+        page.querySelector('#mfMetricImported').textContent = overview.importedCount;
+        const tor = overview.torrents.slice(0, 8);
+        page.querySelector('#mfOverviewTorrents').innerHTML = tor.length ? tor.map(x => torrentRow(x, true)).join('') : '<tr><td colspan="5" class="mf-empty">Нет торрентов.</td></tr>';
+        const hist = overview.history.slice(0, 8);
+        page.querySelector('#mfOverviewHistory').innerHTML = hist.length ? hist.map(x => historyRow(x, true)).join('') : '<tr><td colspan="4" class="mf-empty">История пуста.</td></tr>';
+        renderQueue(); renderHistory(); renderReview();
+    }
+
+    function renderQueue() {
+        if (!overview) return;
+        const q = (page.querySelector('#mfTorrentSearch').value || '').toLowerCase();
+        const rows = overview.torrents.filter(t => !q || `${t.name} ${t.hash} ${t.category} ${t.mediaFlowStatus}`.toLowerCase().includes(q));
+        page.querySelector('#mfTorrentTable').innerHTML = rows.length ? rows.map(x => torrentRow(x, false)).join('') : '<tr><td colspan="7" class="mf-empty">Ничего не найдено.</td></tr>';
+    }
+
+    function renderHistory() {
+        if (!overview) return;
+        const q = (page.querySelector('#mfHistorySearch').value || '').toLowerCase();
+        const rows = overview.history.filter(h => !q || `${h.status} ${h.sourcePath} ${h.destinationPath} ${h.message} ${h.tmdbId}`.toLowerCase().includes(q));
+        page.querySelector('#mfHistoryTable').innerHTML = rows.length ? rows.map(x => historyRow(x, false)).join('') : '<tr><td colspan="7" class="mf-empty">История пуста.</td></tr>';
+    }
+
+    function renderReview() {
+        if (!overview) return;
+        const rows = overview.history.filter(h => h.status === 'NeedsReview');
+        page.querySelector('#mfReviewTable').innerHTML = rows.length ? rows.map(h => `<tr><td class="mf-name">${esc(h.sourcePath || '—')}<div class="mf-secondary">${esc(h.key)}</div></td><td>${esc(h.message || '—')}</td><td>${fmtDate(h.updatedAt)}</td><td><button type="button" class="mf-mini-btn primary" data-action="retry-state" data-key="${esc(h.key)}">Повторить анализ</button></td></tr>`).join('') : '<tr><td colspan="4" class="mf-empty">Нет элементов, требующих проверки.</td></tr>';
+    }
+
+    async function refreshOverview(showLoading) {
+        if (showLoading) Dashboard.showLoadingMsg();
+        try { overview = await api('GET', 'MediaFlow/Admin/overview?stamp=' + Date.now()); renderOverview(); }
+        catch (e) { console.error(e); toast('Не удалось загрузить MediaFlow: ' + (e.statusText || e.message || e)); }
+        finally { if (showLoading) Dashboard.hideLoadingMsg(); }
+    }
+
+    async function loadSettings() {
+        const config = await ApiClient.getPluginConfiguration(pluginUniqueId);
+        checkIds.forEach(id => { const el = page.querySelector('#' + id); if (el) el.checked = Boolean(config[id]); });
+        textIds.forEach(id => { const el = page.querySelector('#' + id); if (el) el.value = config[id] ?? ''; });
+    }
+
+    async function saveSettings() {
+        const config = await ApiClient.getPluginConfiguration(pluginUniqueId);
+        checkIds.forEach(id => { const el = page.querySelector('#' + id); if (el) config[id] = el.checked; });
+        textIds.forEach(id => { const el = page.querySelector('#' + id); if (!el) return; config[id] = el.type === 'number' ? Number(el.value) : el.value; });
+        const result = await ApiClient.updatePluginConfiguration(pluginUniqueId, config);
+        Dashboard.processPluginConfigurationUpdateResult(result);
+        await refreshOverview(false);
+    }
+
+    page.addEventListener('click', async e => {
+        const tab = e.target.closest('[data-tab]'); if (tab) { setTab(tab.dataset.tab); return; }
+        const go = e.target.closest('[data-go-tab]'); if (go) { setTab(go.dataset.goTab); return; }
+        const action = e.target.closest('[data-action]'); if (!action) return;
+        try {
+            if (action.dataset.action === 'reprocess') {
+                if (!confirm('Снять baseline и повторить Failed/NeedsReview для этого торрента? Уже Imported записи сохранятся.')) return;
+                Dashboard.showLoadingMsg();
+                const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/reprocess');
+                toast(`Готово. Удалено записей состояния: ${r.removed}`); await refreshOverview(false);
+            } else if (action.dataset.action === 'reset') {
+                if (!confirm(`Полностью удалить состояние MediaFlow для «${action.dataset.name || 'торрента'}»?\n\nВНИМАНИЕ: Imported записи тоже будут удалены. Если файлы уже существуют в библиотеке, повторный импорт может получить конфликт destination.`)) return;
+                Dashboard.showLoadingMsg();
+                const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/reset');
+                toast(`Состояние сброшено. Удалено записей: ${r.removed}`); await refreshOverview(false);
+            } else if (action.dataset.action === 'retry-state') {
+                Dashboard.showLoadingMsg();
+                const r = await api('POST', 'MediaFlow/Admin/state/retry?key=' + encodeURIComponent(action.dataset.key));
+                toast(r.message || 'State reset'); await refreshOverview(false);
+            }
+        } catch (err) { console.error(err); toast('Ошибка операции: ' + (err.statusText || err.message || err)); }
+        finally { Dashboard.hideLoadingMsg(); }
     });
-});
-document.querySelector('#MediaFlowConfigForm').addEventListener('submit', function (e) {
-    Dashboard.showLoadingMsg();
-    ApiClient.getPluginConfiguration(MediaFlowConfig.pluginUniqueId).then(function (config) {
-        config.Enabled = document.querySelector('#Enabled').checked;
-        config.ManageSequentialEpisodes = document.querySelector('#ManageSequentialEpisodes').checked;
-        config.BaselineExistingTorrentsOnFirstRun = document.querySelector('#BaselineExistingTorrentsOnFirstRun').checked;
-        config.DryRunMode = document.querySelector('#DryRunMode').checked;
-        ids.forEach(id => {
-            const el = document.querySelector('#' + id);
-            if (el.type === 'number') config[id] = Number(el.value);
-            else config[id] = el.value;
-        });
-        ApiClient.updatePluginConfiguration(MediaFlowConfig.pluginUniqueId, config).then(function (result) {
-            Dashboard.processPluginConfigurationUpdateResult(result);
-        });
+
+    page.querySelector('#mfRefreshTop').addEventListener('click', () => refreshOverview(true));
+    page.querySelector('#mfTorrentSearch').addEventListener('input', renderQueue);
+    page.querySelector('#mfHistorySearch').addEventListener('input', renderHistory);
+    page.querySelector('#MediaFlowConfigForm').addEventListener('submit', async e => {
+        e.preventDefault(); Dashboard.showLoadingMsg();
+        try { await saveSettings(); toast('Настройки сохранены.'); }
+        catch (err) { console.error(err); toast('Не удалось сохранить настройки.'); }
+        finally { Dashboard.hideLoadingMsg(); }
+        return false;
     });
-    e.preventDefault();
-    return false;
-});
+
+    page.addEventListener('pageshow', async () => {
+        Dashboard.showLoadingMsg();
+        try { await Promise.all([loadSettings(), refreshOverview(false)]); }
+        finally { Dashboard.hideLoadingMsg(); }
+    });
+})();
 </script>
 </div>
 </body>

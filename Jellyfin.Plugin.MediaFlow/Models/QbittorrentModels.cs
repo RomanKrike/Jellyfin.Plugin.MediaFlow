@@ -18,6 +18,21 @@ public sealed class QbTorrent
 
     [JsonPropertyName("category")]
     public string Category { get; set; } = string.Empty;
+
+    [JsonPropertyName("progress")]
+    public double Progress { get; set; }
+
+    [JsonPropertyName("state")]
+    public string State { get; set; } = string.Empty;
+
+    [JsonPropertyName("size")]
+    public long Size { get; set; }
+
+    [JsonPropertyName("downloaded")]
+    public long Downloaded { get; set; }
+
+    [JsonPropertyName("added_on")]
+    public long AddedOn { get; set; }
 }
 
 public sealed class QbTorrentFile

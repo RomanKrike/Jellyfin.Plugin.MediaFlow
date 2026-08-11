@@ -6,6 +6,7 @@ namespace Jellyfin.Plugin.MediaFlow.Services;
 
 public sealed class ImportStateStore
 {
+    private const string BaselineTorrentPrefix = "__mediaflow_torrent_baseline:";
     private readonly ILogger<ImportStateStore> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private Dictionary<string, ImportStateEntry>? _entries;
@@ -30,6 +31,20 @@ public sealed class ImportStateStore
         }
     }
 
+    public async Task<IReadOnlyDictionary<string, ImportStateEntry>> GetAllAsync(CancellationToken cancellationToken)
+    {
+        await EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return new Dictionary<string, ImportStateEntry>(_entries!, StringComparer.Ordinal);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public async Task SetAsync(ImportStateEntry entry, CancellationToken cancellationToken)
     {
         await EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
@@ -39,6 +54,100 @@ public sealed class ImportStateStore
             entry.UpdatedAt = DateTimeOffset.UtcNow;
             _entries![entry.Key] = entry;
             await SaveUnsafeAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task<bool> RemoveAsync(string key, CancellationToken cancellationToken)
+    {
+        await EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!_entries!.Remove(key))
+            {
+                return false;
+            }
+
+            await SaveUnsafeAsync(cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Safely makes a torrent eligible for processing again while preserving already imported file entries.
+    /// Removes the torrent baseline plus Failed/NeedsReview entries for this torrent.
+    /// </summary>
+    public async Task<int> ReprocessTorrentAsync(string hash, CancellationToken cancellationToken)
+    {
+        await EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var filePrefix = hash + ":";
+            var baselineKey = BaselineTorrentPrefix + hash;
+            var keys = _entries!
+                .Where(x => string.Equals(x.Key, baselineKey, StringComparison.OrdinalIgnoreCase)
+                    || (x.Key.StartsWith(filePrefix, StringComparison.OrdinalIgnoreCase)
+                        && (string.Equals(x.Value.Status, "Failed", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(x.Value.Status, "NeedsReview", StringComparison.OrdinalIgnoreCase))))
+                .Select(x => x.Key)
+                .ToList();
+
+            foreach (var key in keys)
+            {
+                _entries.Remove(key);
+            }
+
+            if (keys.Count > 0)
+            {
+                await SaveUnsafeAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            return keys.Count;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Removes every state entry for a torrent, including Imported entries and its baseline marker.
+    /// The global baseline marker is intentionally never touched.
+    /// </summary>
+    public async Task<int> ResetTorrentAsync(string hash, CancellationToken cancellationToken)
+    {
+        await EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var filePrefix = hash + ":";
+            var baselineKey = BaselineTorrentPrefix + hash;
+            var keys = _entries!
+                .Keys
+                .Where(x => string.Equals(x, baselineKey, StringComparison.OrdinalIgnoreCase)
+                    || x.StartsWith(filePrefix, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            foreach (var key in keys)
+            {
+                _entries.Remove(key);
+            }
+
+            if (keys.Count > 0)
+            {
+                await SaveUnsafeAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            return keys.Count;
         }
         finally
         {
