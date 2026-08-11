@@ -1,17 +1,5 @@
-MediaFlow v0.1.11
-
-Admin UI / review update:
-- Redesigned torrent list as status/progress cards.
-- Added Worker, qBittorrent and TMDb connection indicators.
-- Admin overview remains available when qBittorrent is temporarily unavailable.
-- TMDb health check is shown directly in the MediaFlow page.
-- Needs Review now stores TMDb candidates and poster paths.
-- Needs Review UI shows candidate posters, scores and resolver reasons.
-- Manual TMDb search from a review item.
-- Manual candidate approval creates/reconciles the hardlink, marks Imported and queues a Jellyfin scan.
-- Review items can be ignored; worker will not retry Ignored files until state Retry is used.
-- Existing old NeedsReview entries remain compatible; use Retry once to rebuild candidate metadata.
-- No JavaScript template literals (${...}) are used, avoiding Jellyfin configuration-page localization conflicts.
-
-Version: 0.1.11
-Target: Jellyfin 10.11.11 / net9.0
+MediaFlow v0.1.11 build fix
+- Fixes CS0119 in MediaFlowAdminController.cs line 247.
+- ControllerBase.File(...) shadowed System.IO.File in the controller context.
+- Uses System.IO.File.Exists(...) explicitly.
+- Version remains 0.1.11 because the previous build never released.

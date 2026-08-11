@@ -244,7 +244,7 @@ public sealed class MediaFlowAdminController : ControllerBase
             return BadRequest(new { message = "This review entry predates manual matching metadata. Use Retry once to rebuild it." });
         }
 
-        if (!File.Exists(entry.SourcePath))
+        if (!System.IO.File.Exists(entry.SourcePath))
         {
             return BadRequest(new { message = "Source file no longer exists: " + entry.SourcePath });
         }
