@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.23.0",
+        "changelog": "Release MediaFlow v0.1.23",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow/releases/download/v0.1.23/Jellyfin.Plugin.MediaFlow.v.0.1.23.zip",
+        "checksum": "B22FC380B4C5D33980870B7B499925DF",
+        "timestamp": "2026-08-12T16:03:29Z"
+      },
+      {
         "version": "0.1.22.0",
         "changelog": "Fix episode parsing and manual TMDb review",
         "targetAbi": "10.11.0.0",
