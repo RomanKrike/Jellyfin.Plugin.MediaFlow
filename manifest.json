@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.16.0",
+        "changelog": "Add torrent-level TMDb identity and season labels",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow/releases/download/v0.1.16/Jellyfin.Plugin.MediaFlow.v.0.1.16.zip",
+        "checksum": "4B9AE29FA2C0F8EAF2AE9BA37DD6032D",
+        "timestamp": "2026-08-12T14:07:30Z"
+      },
+      {
         "version": "0.1.15.0",
         "changelog": "Fix active torrent status and downloading UI",
         "targetAbi": "10.11.0.0",
