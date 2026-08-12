@@ -173,5 +173,17 @@
   "media.media": "МЕДИА",
   "media.generic": "Медиа",
   "toast.stateRetry": "State сброшен; файл снова может быть обработан.",
-  "toast.reviewIgnored": "Элемент проверки проигнорирован."
+  "toast.reviewIgnored": "Элемент проверки проигнорирован.",
+  "qbStatus.downloading": "Скачивается",
+  "qbStatus.seeding": "Раздаётся",
+  "qbStatus.queued": "В очереди",
+  "qbStatus.paused": "Пауза",
+  "qbStatus.stalled": "Застопорено",
+  "qbStatus.checking": "Проверка",
+  "qbStatus.metadata": "Метаданные",
+  "qbStatus.preparing": "Подготовка",
+  "qbStatus.moving": "Перемещение",
+  "qbStatus.error": "Ошибка",
+  "qbStatus.missingFiles": "Файлы отсутствуют",
+  "qbStatus.unknown": "Неизвестно"
 }

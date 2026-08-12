@@ -4,7 +4,7 @@ MediaFlow is a Jellyfin server plugin that automates the path from **qBittorrent
 
 It works at the **individual file level**, so completed episodes can be imported without waiting for an entire season pack to finish.
 
-> Current development target: **MediaFlow 0.1.20 · Jellyfin 10.11.11 · .NET 9**
+> Current development target: **MediaFlow 0.1.21 · Jellyfin 10.11.11 · .NET 9**
 
 ## What MediaFlow does
 

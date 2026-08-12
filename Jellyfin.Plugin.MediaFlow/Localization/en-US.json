@@ -173,5 +173,17 @@
   "media.media": "MEDIA",
   "media.generic": "Media",
   "toast.stateRetry": "State reset; the file can be processed again.",
-  "toast.reviewIgnored": "Review item ignored."
+  "toast.reviewIgnored": "Review item ignored.",
+  "qbStatus.downloading": "Downloading",
+  "qbStatus.seeding": "Seeding",
+  "qbStatus.queued": "Queued",
+  "qbStatus.paused": "Paused",
+  "qbStatus.stalled": "Stalled",
+  "qbStatus.checking": "Checking",
+  "qbStatus.metadata": "Metadata",
+  "qbStatus.preparing": "Preparing",
+  "qbStatus.moving": "Moving",
+  "qbStatus.error": "Error",
+  "qbStatus.missingFiles": "Missing files",
+  "qbStatus.unknown": "Unknown"
 }

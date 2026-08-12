@@ -524,10 +524,44 @@
         return parts.join('');
     }
 
+    function qbStatusInfo(state) {
+        const raw = String(state || '').trim();
+        const map = {
+            downloading: ['qbStatus.downloading', 'info downloading'],
+            forcedDL: ['qbStatus.downloading', 'info downloading'],
+            metaDL: ['qbStatus.metadata', 'warn'],
+            allocating: ['qbStatus.preparing', 'warn'],
+            queuedDL: ['qbStatus.queued', 'warn'],
+            pausedDL: ['qbStatus.paused', ''],
+            stalledDL: ['qbStatus.stalled', 'warn'],
+            checkingDL: ['qbStatus.checking', 'info'],
+            checkingResumeData: ['qbStatus.checking', 'info'],
+            moving: ['qbStatus.moving', 'info'],
+
+            uploading: ['qbStatus.seeding', 'ok'],
+            forcedUP: ['qbStatus.seeding', 'ok'],
+            queuedUP: ['qbStatus.queued', 'warn'],
+            pausedUP: ['qbStatus.paused', ''],
+            stalledUP: ['qbStatus.stalled', 'warn'],
+            checkingUP: ['qbStatus.checking', 'info'],
+
+            error: ['qbStatus.error', 'err'],
+            missingFiles: ['qbStatus.missingFiles', 'err'],
+            unknown: ['qbStatus.unknown', '']
+        };
+
+        const item = map[raw] || ['qbStatus.unknown', ''];
+        return {
+            label: tr(item[0]),
+            className: item[1]
+        };
+    }
+
     function torrentCard(t, compact) {
         const pct = Math.max(0, Math.min(100, Number(t.progress || 0) * 100));
         const sizeText = fmtBytes(t.downloaded) + ' / ' + fmtBytes(t.size);
         const displayStatus = effectiveTorrentStatus(t);
+        const qbStatus = qbStatusInfo(t.qbState);
         const actions = '<div class="mf-rich-actions">'
             + (!compact ? '<button type="button" class="mf-mini-btn" data-action="toggle-details" data-hash="' + esc(t.hash) + '">' + esc(tr('common.files')) + '</button>' : '')
             + '<button type="button" class="mf-mini-btn" data-action="reconcile" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">' + esc(tr('common.reconcile')) + '</button>'
@@ -556,7 +590,7 @@
                             + '<span class="mf-badge">' + esc(t.category || '—') + '</span>'
                             + '<span class="mf-badge ' + statusClass(displayStatus) + '">' + esc(statusLabel(displayStatus)) + '</span>'
                             + '<span data-mf-seasons></span>'
-                            + '<span class="mf-secondary">qB: ' + esc(t.qbState || '—') + '</span>'
+                            + '<span class="mf-badge ' + esc(qbStatus.className) + '">' + esc(qbStatus.label) + '</span>'
                         + '</div>'
                     + '</div>'
                     + actions
