@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.14.0",
+        "changelog": "Fix Overview posters and torrent action menu",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow/releases/download/v0.1.14/Jellyfin.Plugin.MediaFlow.v.0.1.14.zip",
+        "checksum": "0EDBBB2A63B31E8CA5B20AD2D1E38FEB",
+        "timestamp": "2026-08-12T13:12:57Z"
+      },
+      {
         "version": "0.1.13.0",
         "changelog": "Add rich torrent cards and MediaFlow logs",
         "targetAbi": "10.11.0.0",
