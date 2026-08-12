@@ -191,11 +191,11 @@ When enabled for the configured TV category, MediaFlow can control qBittorrent f
 Conceptually:
 
 ```text
-next incomplete episode   → highest priority
-later incomplete episodes → do not download
+next incomplete episode   → Maximum priority
+other episodes             → Normal priority (remain selected)
 ```
 
-When the active episode finishes, MediaFlow imports it and allows the next episode on a later worker cycle.
+All episode files remain selected in qBittorrent so torrent-level progress stays correct. MediaFlow gives the next incomplete episode Maximum priority, keeps the others at Normal priority, and enables qBittorrent sequential download. When the active episode finishes, the next episode becomes the Maximum-priority episode on a later worker cycle.
 
 This mode is intended for season packs where you want to start watching before the entire torrent has downloaded.
 

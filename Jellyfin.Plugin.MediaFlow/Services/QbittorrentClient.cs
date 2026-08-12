@@ -69,6 +69,22 @@ public sealed class QbittorrentClient : IDisposable
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task ToggleSequentialDownloadAsync(string hash, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(hash))
+        {
+            throw new ArgumentException("Torrent hash is required.", nameof(hash));
+        }
+
+        var form = new Dictionary<string, string>
+        {
+            ["hashes"] = hash
+        };
+
+        using var response = await SendAsync(HttpMethod.Post, "api/v2/torrents/toggleSequentialDownload", form, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task DeleteTorrentAsync(string hash, bool deleteFiles, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(hash))

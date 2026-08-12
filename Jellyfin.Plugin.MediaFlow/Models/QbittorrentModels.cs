@@ -33,6 +33,9 @@ public sealed class QbTorrent
 
     [JsonPropertyName("added_on")]
     public long AddedOn { get; set; }
+
+    [JsonPropertyName("seq_dl")]
+    public bool SequentialDownload { get; set; }
 }
 
 public sealed class QbTorrentFile

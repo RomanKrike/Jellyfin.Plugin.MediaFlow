@@ -663,21 +663,40 @@ public sealed class MediaFlowWorker : BackgroundService
             return;
         }
 
-        var next = incomplete[0];
-        if (next.File.Priority != 7)
+        // Keep every recognized episode selected in qBittorrent. Previous MediaFlow versions
+        // used priority 0 (Do not download) for future episodes. qBittorrent then reported the
+        // torrent as 100% complete as soon as the currently selected subset finished, even though
+        // later episodes were still excluded. That made both qBittorrent and MediaFlow show a
+        // misleading completed/uploading state.
+        //
+        // Priority-based sequencing keeps the whole season selected:
+        //   current incomplete episode -> Maximum (7)
+        //   every other episode        -> Normal  (1)
+        // qBittorrent's native sequential piece mode is also enabled once for the torrent.
+        // This strongly prefers the earliest/current episode without corrupting overall progress.
+        if (!torrent.SequentialDownload)
         {
-            await _qbittorrent.SetFilePriorityAsync(torrent.Hash, next.File.Index, 7, cancellationToken).ConfigureAwait(false);
-            _logger.LogInformation("Sequential mode: prioritizing {Torrent} S{Season:00}E{Episode:00}", torrent.Name, next.Season, next.Episode);
-            await _activityLog.AddAsync("Information", "Sequential", $"Prioritized S{next.Season:00}E{next.Episode:00}.", cancellationToken, torrent.Hash, torrent.Name, next.File.Name).ConfigureAwait(false);
+            await _qbittorrent.ToggleSequentialDownloadAsync(torrent.Hash, cancellationToken).ConfigureAwait(false);
+            torrent.SequentialDownload = true;
+            _logger.LogInformation("Sequential mode: enabled qBittorrent sequential download for {Torrent}", torrent.Name);
+            await _activityLog.AddAsync("Information", "Sequential", "Enabled qBittorrent sequential download.", cancellationToken, torrent.Hash, torrent.Name).ConfigureAwait(false);
         }
 
-        foreach (var later in incomplete.Skip(1))
+        var next = incomplete[0];
+        foreach (var episode in episodes)
         {
-            if (later.File.Priority != 0)
+            var targetPriority = episode.File.Index == next.File.Index ? 7 : 1;
+            if (episode.File.Priority == targetPriority)
             {
-                await _qbittorrent.SetFilePriorityAsync(torrent.Hash, later.File.Index, 0, cancellationToken).ConfigureAwait(false);
+                continue;
             }
+
+            await _qbittorrent.SetFilePriorityAsync(torrent.Hash, episode.File.Index, targetPriority, cancellationToken).ConfigureAwait(false);
+            episode.File.Priority = targetPriority;
         }
+
+        _logger.LogInformation("Sequential mode: prioritizing {Torrent} S{Season:00}E{Episode:00}; future episodes remain selected at normal priority", torrent.Name, next.Season, next.Episode);
+        await _activityLog.AddAsync("Information", "Sequential", $"Prioritized S{next.Season:00}E{next.Episode:00}; future episodes remain selected.", cancellationToken, torrent.Hash, torrent.Name, next.File.Name).ConfigureAwait(false);
     }
 
     private static bool IsVideoFile(QbTorrentFile file)
