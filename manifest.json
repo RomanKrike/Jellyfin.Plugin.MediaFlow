@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.20.0",
+        "changelog": "Move torrent seasons from title to chips",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow/releases/download/v0.1.20/Jellyfin.Plugin.MediaFlow.v.0.1.20.zip",
+        "checksum": "CC8915BF5229A0CEF7A9D2B2712733AF",
+        "timestamp": "2026-08-12T15:18:25Z"
+      },
+      {
         "version": "0.1.19.0",
         "changelog": "Fix localization helper name collision",
         "targetAbi": "10.11.0.0",
