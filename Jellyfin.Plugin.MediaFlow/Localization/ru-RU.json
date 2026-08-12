@@ -185,5 +185,9 @@
   "qbStatus.moving": "Перемещение",
   "qbStatus.error": "Ошибка",
   "qbStatus.missingFiles": "Файлы отсутствуют",
-  "qbStatus.unknown": "Неизвестно"
+  "qbStatus.unknown": "Неизвестно",
+  "common.autoRefresh": "Автообновление",
+  "common.autoRefreshHint": "Информация обновляется автоматически каждые 5 секунд.",
+  "common.autoRefreshPausedHint": "Автообновление временно приостановлено.",
+  "common.paused": "Пауза"
 }

@@ -185,5 +185,9 @@
   "qbStatus.moving": "Moving",
   "qbStatus.error": "Error",
   "qbStatus.missingFiles": "Missing files",
-  "qbStatus.unknown": "Unknown"
+  "qbStatus.unknown": "Unknown",
+  "common.autoRefresh": "Auto refresh",
+  "common.autoRefreshHint": "Information refreshes automatically every 5 seconds.",
+  "common.autoRefreshPausedHint": "Auto refresh is temporarily paused.",
+  "common.paused": "Paused"
 }

@@ -201,7 +201,11 @@
                     <p class="mf-subtitle" data-i18n="app.subtitle"></p>
                 </div>
                 <div class="mf-header-actions">
-                    <button id="mfRefreshTop" type="button" is="emby-button" class="raised emby-button"><span data-i18n="common.refreshScreen"></span></button>
+                    <div id="mfAutoRefreshStatus" class="mf-health-chip ok" title="">
+                        <span class="mf-health-dot"></span>
+                        <span class="mf-health-name" data-i18n="common.autoRefresh"></span>
+                        <span class="mf-health-value">5 s</span>
+                    </div>
                 </div>
             </div>
 
@@ -1008,15 +1012,122 @@
         }
     }
 
-    async function refreshOverview(showLoading) {
+    const MF_AUTO_REFRESH_MS = 5000;
+    let mfAutoRefreshTimer = null;
+    let mfAutoRefreshRunning = false;
+
+    function activeTabName() {
+        const active = page.querySelector('.mf-tab.active');
+        return active && active.dataset ? active.dataset.tab : 'overview';
+    }
+
+    function isUserEditing() {
+        const el = document.activeElement;
+        if (!el || !page.contains(el)) return false;
+        return el.matches('input, textarea, select, [contenteditable="true"]');
+    }
+
+    function captureRefreshUiState() {
+        const expandedHashes = [];
+        page.querySelectorAll('#mfTorrentCards .mf-rich-card.expanded [data-action="toggle-details"]').forEach(function(button) {
+            if (button.dataset.hash) expandedHashes.push(button.dataset.hash);
+        });
+
+        const reviewQueries = {};
+        page.querySelectorAll('.mf-review-item').forEach(function(item) {
+            const key = item.dataset.reviewKey;
+            const input = item.querySelector('.mf-review-search');
+            if (key && input && input.value) reviewQueries[key] = input.value;
+        });
+
+        return {
+            expandedHashes: expandedHashes,
+            reviewQueries: reviewQueries
+        };
+    }
+
+    async function restoreRefreshUiState(state) {
+        if (!state) return;
+
+        Object.keys(state.reviewQueries || {}).forEach(function(key) {
+            const item = findReviewItem(key);
+            const input = item ? item.querySelector('.mf-review-search') : null;
+            if (input) input.value = state.reviewQueries[key];
+        });
+
+        for (const hash of (state.expandedHashes || [])) {
+            const button = page.querySelector('#mfTorrentCards [data-action="toggle-details"][data-hash="' + CSS.escape(hash) + '"]');
+            const card = button ? button.closest('.mf-rich-card') : null;
+            if (!button || !card) continue;
+
+            card.classList.add('expanded');
+            button.textContent = tr('common.hideFiles');
+            try {
+                await loadTorrentDetails(hash, card, false);
+            } catch (err) {
+                console.debug('MediaFlow auto-refresh details restore failed', err);
+            }
+        }
+    }
+
+    function updateAutoRefreshIndicator(running) {
+        const el = page.querySelector('#mfAutoRefreshStatus');
+        if (!el) return;
+        el.classList.remove('ok', 'warn', 'err');
+        el.classList.add(running ? 'ok' : 'warn');
+        const value = el.querySelector('.mf-health-value');
+        if (value) value.textContent = running ? '5 s' : tr('common.paused');
+        el.title = running ? tr('common.autoRefreshHint') : tr('common.autoRefreshPausedHint');
+    }
+
+    async function autoRefreshTick() {
+        if (mfAutoRefreshRunning || mfInitRunning) return;
+        if (document.hidden || !page.isConnected) return;
+
+        // Do not replace controls while the user is typing or choosing a value,
+        // and do not close an open destructive-actions menu under the cursor.
+        if (isUserEditing() || page.querySelector('details.mf-action-menu[open]')) return;
+
+        mfAutoRefreshRunning = true;
+        try {
+            await refreshOverview(false, true, true);
+            if (activeTabName() === 'logs') {
+                await loadLogs(false);
+            }
+        } catch (err) {
+            console.debug('MediaFlow auto-refresh failed', err);
+        } finally {
+            mfAutoRefreshRunning = false;
+        }
+    }
+
+    function startAutoRefresh() {
+        if (mfAutoRefreshTimer) return;
+        updateAutoRefreshIndicator(true);
+        mfAutoRefreshTimer = window.setInterval(autoRefreshTick, MF_AUTO_REFRESH_MS);
+    }
+
+    function stopAutoRefresh() {
+        if (mfAutoRefreshTimer) {
+            window.clearInterval(mfAutoRefreshTimer);
+            mfAutoRefreshTimer = null;
+        }
+        updateAutoRefreshIndicator(false);
+    }
+
+    async function refreshOverview(showLoading, preserveUiState, silent) {
+        const savedUiState = preserveUiState ? captureRefreshUiState() : null;
         if (showLoading) Dashboard.showLoadingMsg();
         try {
             overview = await api('GET', 'MediaFlow/Admin/overview?stamp=' + Date.now());
             torrentDetailsCache.clear();
             renderOverview();
+            if (savedUiState) await restoreRefreshUiState(savedUiState);
         } catch (e) {
             console.error(e);
-            toast(tr('error.mediaflowLoad', {message:(e.statusText || e.message || e)}));
+            if (!silent) {
+                toast(tr('error.mediaflowLoad', {message:(e.statusText || e.message || e)}));
+            }
         } finally {
             if (showLoading) Dashboard.hideLoadingMsg();
         }
@@ -1177,7 +1288,6 @@
         }
     });
 
-    page.querySelector('#mfRefreshTop').addEventListener('click', function() { refreshOverview(true); });
     page.querySelector('#mfTorrentSearch').addEventListener('input', renderQueue);
     page.querySelector('#mfTorrentFilter').addEventListener('change', renderQueue);
     page.querySelector('#mfHistorySearch').addEventListener('input', renderHistory);
@@ -1232,10 +1342,27 @@
         }
     }
 
-    page.addEventListener('pageshow', initializePage);
-    page.addEventListener('viewshow', initializePage);
-    console.info('MediaFlow UI v0.1.20 script loaded');
-    queueMicrotask(initializePage);
+    async function showMediaFlowPage() {
+        await initializePage();
+        startAutoRefresh();
+    }
+
+    page.addEventListener('pageshow', showMediaFlowPage);
+    page.addEventListener('viewshow', showMediaFlowPage);
+    page.addEventListener('pagehide', stopAutoRefresh);
+    page.addEventListener('viewhide', stopAutoRefresh);
+
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            updateAutoRefreshIndicator(false);
+        } else if (page.isConnected) {
+            updateAutoRefreshIndicator(true);
+            autoRefreshTick();
+        }
+    });
+
+    console.info('MediaFlow UI v0.1.22 auto-refresh script loaded');
+    queueMicrotask(showMediaFlowPage);
 })();
 </script>
 </div>
