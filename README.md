@@ -380,3 +380,17 @@ MediaFlow is intentionally focused on one workflow:
 > **download media with qBittorrent, identify it reliably, organize it without duplicating storage, and make it appear in Jellyfin with as little manual work as possible.**
 
 It is not intended to replace qBittorrent or Jellyfin. It connects them and owns the import/reconciliation layer between them.
+
+## Localization
+
+MediaFlow keeps user-facing admin UI strings in separate embedded JSON resources:
+
+```text
+Jellyfin.Plugin.MediaFlow/Localization/
+├── en-US.json
+└── ru-RU.json
+```
+
+The dashboard loads the language resource through the authenticated MediaFlow admin API and follows the Jellyfin/browser culture. Internal state identifiers such as `Imported`, `Failed`, `NeedsReview`, and `Baseline` stay language-neutral and are translated only for display.
+
+To add another language, copy `en-US.json`, rename it to the target culture (for example `de-DE.json`) and translate the values while keeping the keys unchanged.
