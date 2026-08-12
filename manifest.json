@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.19.0",
+        "changelog": "Fix localization helper name collision",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow/releases/download/v0.1.19/Jellyfin.Plugin.MediaFlow.v.0.1.19.zip",
+        "checksum": "D45029BA74A37CB3AC65036DEC07DDAE",
+        "timestamp": "2026-08-12T15:06:43Z"
+      },
+      {
         "version": "0.1.18.0",
         "changelog": "Add MediaFlow localization infrastructure",
         "targetAbi": "10.11.0.0",
