@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.18.0",
+        "changelog": "Add MediaFlow localization infrastructure",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow/releases/download/v0.1.18/Jellyfin.Plugin.MediaFlow.v.0.1.18.zip",
+        "checksum": "BBC869EB8F98AC5DAEFF017772A06142",
+        "timestamp": "2026-08-12T14:56:46Z"
+      },
+      {
         "version": "0.1.17.0",
         "changelog": "Replace disabled episodes with priority based sequential downloading",
         "targetAbi": "10.11.0.0",
