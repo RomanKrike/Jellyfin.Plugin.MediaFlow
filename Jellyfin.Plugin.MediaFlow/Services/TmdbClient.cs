@@ -54,6 +54,44 @@ public sealed class TmdbClient
         }).ToList() ?? [];
     }
 
+    public async Task<TmdbCandidate> GetMediaSummaryByIdAsync(
+        MediaKind kind,
+        int id,
+        CancellationToken cancellationToken)
+    {
+        if (kind is not MediaKind.Movie and not MediaKind.Episode)
+        {
+            throw new ArgumentOutOfRangeException(nameof(kind), "TMDb media summary requires Movie or Episode kind.");
+        }
+
+        var config = GetConfig();
+        EnsureConfigured(config.TmdbApiKey);
+
+        var endpoint = kind == MediaKind.Episode ? $"tv/{id}" : $"movie/{id}";
+        var url = $"{endpoint}?api_key={Uri.EscapeDataString(config.TmdbApiKey)}&language={Uri.EscapeDataString(config.TmdbLanguage)}";
+        using var response = await _client.GetAsync(url, cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            throw new InvalidOperationException($"TMDb item #{id} was not found.");
+        }
+
+        response.EnsureSuccessStatusCode();
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        var payload = await JsonSerializer.DeserializeAsync<DetailsResponse>(stream, JsonOptions, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"TMDb returned an empty response for #{id}.");
+
+        return new TmdbCandidate
+        {
+            Id = payload.Id,
+            Kind = kind,
+            Title = kind == MediaKind.Episode ? payload.Name ?? string.Empty : payload.Title ?? string.Empty,
+            OriginalTitle = kind == MediaKind.Episode ? payload.OriginalName ?? string.Empty : payload.OriginalTitle ?? string.Empty,
+            Year = ParseYear(kind == MediaKind.Episode ? payload.FirstAirDate : payload.ReleaseDate),
+            Popularity = payload.Popularity,
+            PosterPath = payload.PosterPath
+        };
+    }
+
     public async Task<TmdbCandidate> GetCandidateByIdAsync(
         MediaKind kind,
         int id,

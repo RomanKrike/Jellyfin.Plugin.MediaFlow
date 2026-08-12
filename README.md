@@ -4,7 +4,7 @@ MediaFlow is a Jellyfin server plugin that automates the path from **qBittorrent
 
 It works at the **individual file level**, so completed episodes can be imported without waiting for an entire season pack to finish.
 
-> Current development target: **MediaFlow 0.1.12 · Jellyfin 10.11.11 · .NET 9**
+> Current development target: **MediaFlow 0.1.13 · Jellyfin 10.11.11 · .NET 9**
 
 ## What MediaFlow does
 
@@ -50,9 +50,10 @@ MediaFlow has its own administration page inside the Jellyfin dashboard.
 The interface contains:
 
 - **Overview** — worker state, counters and recent activity.
-- **Torrents** — qBittorrent progress, MediaFlow status and torrent-level actions.
+- **Torrents** — media cards with qBittorrent progress, TMDb artwork/identity, per-file or per-episode state and torrent-level actions.
 - **Needs Review** — manual TMDb candidate selection.
 - **History** — imported, failed, ignored and review state.
+- **Logs** — persistent structured MediaFlow events for imports, failures, review, reconcile and admin actions.
 - **Settings** — qBittorrent, TMDb, paths, worker and safety configuration.
 
 Connection indicators are shown for:
@@ -60,6 +61,24 @@ Connection indicators are shown for:
 - MediaFlow worker;
 - qBittorrent;
 - TMDb.
+
+### Torrent cards and episode details
+
+The Torrents page can lazily load detailed information for a torrent. When a TMDb identity is known, MediaFlow shows its localized title, year and poster while preserving the original release name below it.
+
+Expanding a card shows eligible video files and, for TV releases, parsed `SxxExx` information together with:
+
+- qBittorrent file progress and priority;
+- MediaFlow state;
+- source/destination presence;
+- hardlink health;
+- TMDb id where available.
+
+### Structured logs
+
+MediaFlow keeps a bounded structured JSONL event log in its plugin data directory. The admin Logs page can filter and search the latest events and clear this log without touching MediaFlow import state.
+
+The structured log is intentionally focused on MediaFlow actions rather than duplicating the entire Jellyfin server log.
 
 ## Torrent management
 

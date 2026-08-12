@@ -22,6 +22,9 @@ public sealed class MediaFlowAdminController : ControllerBase
     private readonly TmdbClient _tmdb;
     private readonly HardLinkService _hardLinks;
     private readonly ImportStateStore _state;
+    private readonly MediaParser _parser;
+    private readonly PathMapper _pathMapper;
+    private readonly MediaFlowLogStore _activityLog;
     private readonly ILibraryManager _libraryManager;
 
     public MediaFlowAdminController(
@@ -29,12 +32,18 @@ public sealed class MediaFlowAdminController : ControllerBase
         TmdbClient tmdb,
         HardLinkService hardLinks,
         ImportStateStore state,
+        MediaParser parser,
+        PathMapper pathMapper,
+        MediaFlowLogStore activityLog,
         ILibraryManager libraryManager)
     {
         _qbittorrent = qbittorrent;
         _tmdb = tmdb;
         _hardLinks = hardLinks;
         _state = state;
+        _parser = parser;
+        _pathMapper = pathMapper;
+        _activityLog = activityLog;
         _libraryManager = libraryManager;
     }
 
@@ -112,6 +121,184 @@ public sealed class MediaFlowAdminController : ControllerBase
         });
     }
 
+    [HttpGet("torrents/{hash}/details")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult> GetTorrentDetails([FromRoute] string hash, CancellationToken cancellationToken)
+    {
+        ValidateHash(hash);
+        var config = Plugin.Instance?.Configuration
+            ?? throw new InvalidOperationException("MediaFlow plugin configuration is not available.");
+
+        var torrents = await _qbittorrent.GetTorrentsAsync(cancellationToken).ConfigureAwait(false);
+        var torrent = torrents.FirstOrDefault(x => string.Equals(x.Hash, hash, StringComparison.OrdinalIgnoreCase));
+        if (torrent is null)
+        {
+            return NotFound(new { message = "Torrent is no longer present in qBittorrent or its category is not managed by MediaFlow." });
+        }
+
+        var qbFiles = await _qbittorrent.GetFilesAsync(hash, cancellationToken).ConfigureAwait(false);
+        var allState = await _state.GetAllAsync(cancellationToken).ConfigureAwait(false);
+        var prefix = hash + ":";
+        var state = allState
+            .Where(x => x.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase);
+        var categoryKind = GetCategoryKind(torrent.Category, config);
+        var rows = new List<MediaFlowTorrentFileRow>();
+        ImportStateEntry? identityEntry = null;
+        ParsedMedia? identityParsed = null;
+
+        foreach (var file in qbFiles.Where(x => IsEligibleVideoFile(x, config)).OrderBy(x => x.Index))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var key = hash + ":" + file.Index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            state.TryGetValue(key, out var entry);
+
+            string? sourcePath = null;
+            ParsedMedia? parsed = null;
+            try
+            {
+                sourcePath = _pathMapper.BuildAndMap(torrent.SavePath, file.Name);
+                parsed = _parser.Parse(sourcePath, torrent.Name, file.Name);
+                if (categoryKind != MediaKind.Unknown)
+                {
+                    parsed.Kind = categoryKind;
+                }
+            }
+            catch
+            {
+                // File-level diagnostics are still useful even when parsing/path mapping fails.
+            }
+
+            var sourceExists = !string.IsNullOrWhiteSpace(sourcePath) && System.IO.File.Exists(sourcePath);
+            var destinationPath = entry?.DestinationPath;
+            var destinationExists = !string.IsNullOrWhiteSpace(destinationPath) && System.IO.File.Exists(destinationPath);
+            bool? sameHardlink = null;
+            if (sourceExists && destinationExists && !string.IsNullOrWhiteSpace(destinationPath))
+            {
+                try
+                {
+                    sameHardlink = _hardLinks.IsSameFile(sourcePath!, destinationPath!);
+                }
+                catch
+                {
+                    sameHardlink = false;
+                }
+            }
+
+            if (identityEntry is null && entry?.TmdbId is > 0)
+            {
+                identityEntry = entry;
+                identityParsed = parsed;
+            }
+
+            rows.Add(new MediaFlowTorrentFileRow
+            {
+                Index = file.Index,
+                Name = file.Name,
+                Size = file.Size,
+                Progress = file.Progress,
+                Priority = file.Priority,
+                Season = entry?.Season ?? parsed?.Season,
+                Episode = entry?.Episode ?? parsed?.Episode,
+                StateStatus = entry?.Status,
+                TmdbId = entry?.TmdbId,
+                SourcePath = sourcePath,
+                DestinationPath = entry?.DestinationPath,
+                SourceExists = sourceExists,
+                DestinationExists = destinationExists,
+                SameHardlink = sameHardlink,
+                Message = entry?.Message
+            });
+        }
+
+        MediaFlowMediaSummary? media = null;
+        if (identityEntry?.TmdbId is > 0)
+        {
+            var kind = identityEntry.Kind ?? identityParsed?.Kind ?? categoryKind;
+            if (kind is MediaKind.Movie or MediaKind.Episode)
+            {
+                try
+                {
+                    var tmdb = await _tmdb.GetMediaSummaryByIdAsync(kind, identityEntry.TmdbId.Value, cancellationToken).ConfigureAwait(false);
+                    media = new MediaFlowMediaSummary
+                    {
+                        TmdbId = tmdb.Id,
+                        Kind = kind.ToString(),
+                        Title = string.IsNullOrWhiteSpace(identityEntry.MediaTitle) ? tmdb.Title : identityEntry.MediaTitle!,
+                        Year = identityEntry.MediaYear ?? tmdb.Year,
+                        PosterPath = identityEntry.PosterPath ?? tmdb.PosterPath,
+                        Season = identityEntry.Season ?? identityParsed?.Season
+                    };
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    media = new MediaFlowMediaSummary
+                    {
+                        TmdbId = identityEntry.TmdbId.Value,
+                        Kind = kind.ToString(),
+                        Title = identityEntry.MediaTitle ?? torrent.Name,
+                        Year = identityEntry.MediaYear,
+                        PosterPath = identityEntry.PosterPath,
+                        Season = identityEntry.Season ?? identityParsed?.Season
+                    };
+                }
+            }
+        }
+
+        return Ok(new
+        {
+            hash = torrent.Hash,
+            name = torrent.Name,
+            category = torrent.Category,
+            qbState = torrent.State,
+            progress = torrent.Progress,
+            size = torrent.Size,
+            downloaded = torrent.Downloaded,
+            media,
+            eligibleFiles = rows.Count,
+            completedFiles = rows.Count(x => x.Progress >= 0.999999),
+            importedFiles = rows.Count(x => string.Equals(x.StateStatus, "Imported", StringComparison.OrdinalIgnoreCase)),
+            files = rows
+        });
+    }
+
+    [HttpGet("logs")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult> GetLogs(
+        [FromQuery] int limit = 300,
+        [FromQuery] string? level = null,
+        [FromQuery] string? query = null,
+        CancellationToken cancellationToken = default)
+    {
+        var entries = await _activityLog.GetAsync(limit, cancellationToken).ConfigureAwait(false);
+        IEnumerable<MediaFlowLogEntry> filtered = entries;
+        if (!string.IsNullOrWhiteSpace(level) && !string.Equals(level, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            filtered = filtered.Where(x => string.Equals(x.Level, level, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            var q = query.Trim();
+            filtered = filtered.Where(x =>
+                x.Message.Contains(q, StringComparison.OrdinalIgnoreCase)
+                || x.Source.Contains(q, StringComparison.OrdinalIgnoreCase)
+                || (x.TorrentName?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (x.FileName?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (x.TorrentHash?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+
+        return Ok(new { logs = filtered.ToList() });
+    }
+
+    [HttpPost("logs/clear")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult> ClearLogs(CancellationToken cancellationToken)
+    {
+        await _activityLog.ClearAsync(cancellationToken).ConfigureAwait(false);
+        return Ok(new { success = true, message = "MediaFlow structured log cleared." });
+    }
+
     [HttpPost("torrents/{hash}/reprocess")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<ActionResult> ReprocessTorrent([FromRoute] string hash, CancellationToken cancellationToken)
@@ -119,6 +306,7 @@ public sealed class MediaFlowAdminController : ControllerBase
         ValidateHash(hash);
         var staleImported = await RemoveStaleImportedStateAsync(hash, cancellationToken).ConfigureAwait(false);
         var removed = await _state.ReprocessTorrentAsync(hash, cancellationToken).ConfigureAwait(false);
+        await _activityLog.AddAsync("Information", "Admin", "Reprocess requested. Cleared " + removed + " state entries; stale imported released: " + staleImported + ".", cancellationToken, hash).ConfigureAwait(false);
         return Ok(new
         {
             success = true,
@@ -192,6 +380,8 @@ public sealed class MediaFlowAdminController : ControllerBase
                 differentDestination++;
             }
         }
+
+        await _activityLog.AddAsync("Information", "Reconcile", "Reconcile complete: healthy=" + healthyImported + ", missing=" + missingInJellyfin + ", conflicts=" + differentDestination + ", untracked=" + untrackedCompleted + ".", cancellationToken, hash, torrent.Name).ConfigureAwait(false);
 
         return Ok(new
         {
@@ -292,6 +482,8 @@ public sealed class MediaFlowAdminController : ControllerBase
             _libraryManager.QueueLibraryScan();
         }
 
+        await _activityLog.AddAsync("Warning", "Admin", "Delete from Jellyfin: deleted=" + deleted + ", missing=" + missing + ", conflicts=" + conflicts + ".", cancellationToken, hash).ConfigureAwait(false);
+
         return Ok(new
         {
             success = true,
@@ -314,6 +506,7 @@ public sealed class MediaFlowAdminController : ControllerBase
     {
         ValidateHash(hash);
         await _qbittorrent.DeleteTorrentAsync(hash, deleteFiles, cancellationToken).ConfigureAwait(false);
+        await _activityLog.AddAsync("Warning", "Admin", deleteFiles ? "Removed torrent from qBittorrent with source data." : "Removed torrent from qBittorrent; source data kept.", cancellationToken, hash).ConfigureAwait(false);
         return Ok(new
         {
             success = true,
@@ -330,6 +523,7 @@ public sealed class MediaFlowAdminController : ControllerBase
     {
         ValidateHash(hash);
         var removed = await _state.ResetTorrentAsync(hash, cancellationToken).ConfigureAwait(false);
+        await _activityLog.AddAsync("Warning", "Admin", "MediaFlow torrent state reset. Removed entries: " + removed + ".", cancellationToken, hash).ConfigureAwait(false);
         return Ok(new
         {
             success = true,
@@ -476,10 +670,15 @@ public sealed class MediaFlowAdminController : ControllerBase
             Kind = entry.Kind,
             Season = entry.Season,
             Episode = entry.Episode,
+            MediaTitle = candidate.Title,
+            MediaYear = candidate.Year,
+            PosterPath = candidate.PosterPath,
+            EpisodeTitle = candidate.EpisodeTitle,
             Message = $"Manual TMDb match: {candidate.Title} ({candidate.Year}) #{candidate.Id}."
         }, cancellationToken).ConfigureAwait(false);
 
         _libraryManager.QueueLibraryScan();
+        await _activityLog.AddAsync("Information", "Review", "Manual TMDb match approved: " + candidate.Title + " #" + candidate.Id + ".", cancellationToken, GetTorrentHash(entry.Key), null, Path.GetFileName(entry.SourcePath)).ConfigureAwait(false);
 
         return Ok(new
         {
@@ -517,10 +716,15 @@ public sealed class MediaFlowAdminController : ControllerBase
             Kind = entry.Kind,
             Season = entry.Season,
             Episode = entry.Episode,
+            MediaTitle = entry.MediaTitle,
+            MediaYear = entry.MediaYear,
+            PosterPath = entry.PosterPath,
+            EpisodeTitle = entry.EpisodeTitle,
             ReviewCandidates = entry.ReviewCandidates,
             Message = "Ignored by administrator. Use Retry in History to make this file eligible again."
         }, cancellationToken).ConfigureAwait(false);
 
+        await _activityLog.AddAsync("Warning", "Review", "Review item ignored by administrator.", cancellationToken, GetTorrentHash(entry.Key), null, Path.GetFileName(entry.SourcePath)).ConfigureAwait(false);
         return Ok(new { success = true, message = "Review item ignored." });
     }
 
@@ -566,6 +770,23 @@ public sealed class MediaFlowAdminController : ControllerBase
         }
 
         return removed;
+    }
+
+    private static MediaKind GetCategoryKind(string category, PluginConfiguration config)
+    {
+        if (!string.IsNullOrWhiteSpace(config.QbittorrentMovieCategory)
+            && string.Equals(category, config.QbittorrentMovieCategory.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return MediaKind.Movie;
+        }
+
+        if (!string.IsNullOrWhiteSpace(config.QbittorrentTvCategory)
+            && string.Equals(category, config.QbittorrentTvCategory.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return MediaKind.Episode;
+        }
+
+        return MediaKind.Unknown;
     }
 
     private static bool IsEligibleVideoFile(QbTorrentFile file, PluginConfiguration config)

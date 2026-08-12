@@ -16,6 +16,7 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<PathMapper>();
         serviceCollection.AddSingleton<HardLinkService>();
         serviceCollection.AddSingleton<ImportStateStore>();
+        serviceCollection.AddSingleton<MediaFlowLogStore>();
         serviceCollection.AddHostedService<MediaFlowWorker>();
     }
 }

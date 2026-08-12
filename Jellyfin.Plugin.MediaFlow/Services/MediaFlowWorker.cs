@@ -16,6 +16,7 @@ public sealed class MediaFlowWorker : BackgroundService
     private readonly PathMapper _pathMapper;
     private readonly HardLinkService _hardLinks;
     private readonly ImportStateStore _state;
+    private readonly MediaFlowLogStore _activityLog;
     private readonly ILibraryManager _libraryManager;
     private readonly ILogger<MediaFlowWorker> _logger;
     private string _lastDryRunSignature = string.Empty;
@@ -27,6 +28,7 @@ public sealed class MediaFlowWorker : BackgroundService
         PathMapper pathMapper,
         HardLinkService hardLinks,
         ImportStateStore state,
+        MediaFlowLogStore activityLog,
         ILibraryManager libraryManager,
         ILogger<MediaFlowWorker> logger)
     {
@@ -36,6 +38,7 @@ public sealed class MediaFlowWorker : BackgroundService
         _pathMapper = pathMapper;
         _hardLinks = hardLinks;
         _state = state;
+        _activityLog = activityLog;
         _libraryManager = libraryManager;
         _logger = logger;
     }
@@ -43,6 +46,7 @@ public sealed class MediaFlowWorker : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogWarning("MediaFlow worker started. Background polling service is active.");
+        await _activityLog.AddAsync("Information", "Worker", "MediaFlow worker started.", stoppingToken).ConfigureAwait(false);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -63,6 +67,7 @@ public sealed class MediaFlowWorker : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "MediaFlow cycle failed.");
+                await _activityLog.AddAsync("Error", "Worker", "MediaFlow cycle failed: " + ex.Message, stoppingToken).ConfigureAwait(false);
             }
 
             await Task.Delay(TimeSpan.FromSeconds(delay), stoppingToken).ConfigureAwait(false);
@@ -161,6 +166,7 @@ public sealed class MediaFlowWorker : BackgroundService
                                 .ToList()
                         }, cancellationToken).ConfigureAwait(false);
                         _logger.LogWarning("NEEDS REVIEW: {File}. {Reason}. Candidates: {Candidates}", file.Name, resolution.Reason, top);
+                        await _activityLog.AddAsync("Warning", "Resolver", "Needs review: " + resolution.Reason, cancellationToken, torrent.Hash, torrent.Name, file.Name).ConfigureAwait(false);
                         continue;
                     }
 
@@ -174,9 +180,17 @@ public sealed class MediaFlowWorker : BackgroundService
                         SourcePath = sourcePath,
                         DestinationPath = destination,
                         TmdbId = resolution.Selected.Id,
+                        Kind = parsed.Kind,
+                        Season = parsed.Season,
+                        Episode = parsed.Episode,
+                        MediaTitle = resolution.Selected.Title,
+                        MediaYear = resolution.Selected.Year,
+                        PosterPath = resolution.Selected.PosterPath,
+                        EpisodeTitle = resolution.Selected.EpisodeTitle,
                         Message = resolution.Reason
                     }, cancellationToken).ConfigureAwait(false);
                     _logger.LogInformation("Imported {Source} -> {Destination} (TMDb {TmdbId}, score {Score:F1})", sourcePath, destination, resolution.Selected.Id, resolution.Selected.Score);
+                    await _activityLog.AddAsync("Information", "Importer", "Imported to Jellyfin: " + destination + " (TMDb #" + resolution.Selected.Id + ")", cancellationToken, torrent.Hash, torrent.Name, file.Name).ConfigureAwait(false);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -188,6 +202,7 @@ public sealed class MediaFlowWorker : BackgroundService
                         Message = ex.Message
                     }, cancellationToken).ConfigureAwait(false);
                     _logger.LogError(ex, "Failed to import torrent file {Torrent}/{File}", torrent.Name, file.Name);
+                    await _activityLog.AddAsync("Error", "Importer", ex.Message, cancellationToken, torrent.Hash, torrent.Name, file.Name).ConfigureAwait(false);
                 }
             }
         }
@@ -196,6 +211,7 @@ public sealed class MediaFlowWorker : BackgroundService
         {
             _libraryManager.QueueLibraryScan();
             _logger.LogInformation("Queued Jellyfin library scan after MediaFlow imports.");
+            await _activityLog.AddAsync("Information", "Jellyfin", "Queued library scan after MediaFlow imports.", cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -350,6 +366,7 @@ public sealed class MediaFlowWorker : BackgroundService
         _logger.LogWarning(
             "MediaFlow initial baseline created: {Count} existing movie/TV torrents will be ignored. Only torrents added after this point will be automated.",
             count);
+        await _activityLog.AddAsync("Information", "Worker", "Initial baseline created for " + count + " torrents.", cancellationToken).ConfigureAwait(false);
         return true;
     }
 
@@ -385,6 +402,7 @@ public sealed class MediaFlowWorker : BackgroundService
         {
             await _qbittorrent.SetFilePriorityAsync(torrent.Hash, next.File.Index, 7, cancellationToken).ConfigureAwait(false);
             _logger.LogInformation("Sequential mode: prioritizing {Torrent} S{Season:00}E{Episode:00}", torrent.Name, next.Season, next.Episode);
+            await _activityLog.AddAsync("Information", "Sequential", $"Prioritized S{next.Season:00}E{next.Episode:00}.", cancellationToken, torrent.Hash, torrent.Name, next.File.Name).ConfigureAwait(false);
         }
 
         foreach (var later in incomplete.Skip(1))

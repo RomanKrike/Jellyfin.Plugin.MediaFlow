@@ -140,6 +140,14 @@ public sealed class ImportStateEntry
 
     public int? Episode { get; set; }
 
+    public string? MediaTitle { get; set; }
+
+    public int? MediaYear { get; set; }
+
+    public string? PosterPath { get; set; }
+
+    public string? EpisodeTitle { get; set; }
+
     public List<ReviewCandidateSnapshot> ReviewCandidates { get; set; } = [];
 
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;

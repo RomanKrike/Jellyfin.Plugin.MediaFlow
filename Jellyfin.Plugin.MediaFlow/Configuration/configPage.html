@@ -119,6 +119,41 @@
         #MediaFlowConfigPage .mf-candidate-score { display:flex; gap:.35rem; flex-wrap:wrap; margin:.45rem 0; }
         #MediaFlowConfigPage .mf-candidate-actions { margin-top:auto; padding-top:.45rem; }
 
+
+        #MediaFlowConfigPage .mf-rich-card { display:grid; grid-template-columns:112px minmax(0,1fr); gap:1rem; padding:1rem; background:rgba(255,255,255,.035); border:1px solid var(--mf-border); border-radius:14px; overflow:hidden; }
+        #MediaFlowConfigPage .mf-rich-card:hover { background:rgba(255,255,255,.048); }
+        #MediaFlowConfigPage .mf-rich-cover { width:112px; height:168px; border-radius:9px; object-fit:cover; background:linear-gradient(145deg,rgba(0,164,220,.2),rgba(255,255,255,.04)); border:1px solid rgba(255,255,255,.08); }
+        #MediaFlowConfigPage .mf-rich-cover-empty { width:112px; height:168px; border-radius:9px; display:flex; align-items:center; justify-content:center; text-align:center; padding:.5rem; color:#8edcf6; font-weight:700; font-size:.76rem; letter-spacing:.05em; background:linear-gradient(145deg,rgba(0,164,220,.2),rgba(255,255,255,.04)); border:1px solid rgba(0,164,220,.18); }
+        #MediaFlowConfigPage .mf-rich-body { min-width:0; display:flex; flex-direction:column; gap:.75rem; }
+        #MediaFlowConfigPage .mf-rich-top { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; }
+        #MediaFlowConfigPage .mf-rich-title { font-size:1.08rem; font-weight:650; line-height:1.3; word-break:break-word; }
+        #MediaFlowConfigPage .mf-rich-release { color:var(--mf-muted); font-size:.78rem; margin-top:.25rem; line-height:1.35; word-break:break-word; }
+        #MediaFlowConfigPage .mf-rich-progress { display:grid; grid-template-columns:minmax(170px,1fr) auto; gap:.85rem; align-items:end; }
+        #MediaFlowConfigPage .mf-rich-summary { display:flex; gap:.55rem; align-items:center; flex-wrap:wrap; }
+        #MediaFlowConfigPage .mf-rich-actions { display:flex; gap:.4rem; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
+        #MediaFlowConfigPage .mf-details { grid-column:1 / -1; display:none; border-top:1px solid rgba(255,255,255,.08); padding-top:.9rem; margin-top:.1rem; }
+        #MediaFlowConfigPage .mf-rich-card.expanded .mf-details { display:block; }
+        #MediaFlowConfigPage .mf-detail-head { display:flex; justify-content:space-between; gap:1rem; align-items:center; margin-bottom:.65rem; }
+        #MediaFlowConfigPage .mf-detail-title { font-weight:600; }
+        #MediaFlowConfigPage .mf-file-list { display:grid; gap:.35rem; }
+        #MediaFlowConfigPage .mf-file-row { display:grid; grid-template-columns:86px minmax(0,1fr) 120px 150px; gap:.7rem; align-items:center; padding:.58rem .65rem; border-radius:8px; background:rgba(0,0,0,.14); border:1px solid rgba(255,255,255,.055); }
+        #MediaFlowConfigPage .mf-file-episode { font-weight:650; color:#a9def0; }
+        #MediaFlowConfigPage .mf-file-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        #MediaFlowConfigPage .mf-file-progress { font-size:.78rem; color:var(--mf-muted); }
+        #MediaFlowConfigPage .mf-hardlink.ok { color:var(--mf-good); }
+        #MediaFlowConfigPage .mf-hardlink.err { color:var(--mf-bad); }
+        #MediaFlowConfigPage .mf-hardlink.warn { color:var(--mf-warn); }
+        #MediaFlowConfigPage .mf-detail-loading { padding:1.2rem; color:var(--mf-muted); text-align:center; }
+
+        #MediaFlowConfigPage .mf-log-toolbar { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; margin-bottom:.9rem; }
+        #MediaFlowConfigPage .mf-log-list { display:grid; gap:.4rem; }
+        #MediaFlowConfigPage .mf-log-row { display:grid; grid-template-columns:165px 90px 110px minmax(0,1fr); gap:.75rem; align-items:start; padding:.68rem .75rem; border:1px solid rgba(255,255,255,.07); border-radius:8px; background:rgba(0,0,0,.13); }
+        #MediaFlowConfigPage .mf-log-row.error { border-color:rgba(230,79,79,.25); background:rgba(230,79,79,.055); }
+        #MediaFlowConfigPage .mf-log-row.warning { border-color:rgba(241,179,52,.2); background:rgba(241,179,52,.04); }
+        #MediaFlowConfigPage .mf-log-time, #MediaFlowConfigPage .mf-log-source { color:var(--mf-muted); font-size:.78rem; }
+        #MediaFlowConfigPage .mf-log-message { line-height:1.4; word-break:break-word; }
+        #MediaFlowConfigPage .mf-log-context { color:var(--mf-muted); font-size:.72rem; margin-top:.25rem; word-break:break-word; }
+
         #MediaFlowConfigPage .mf-settings-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:1rem; }
         #MediaFlowConfigPage .mf-settings-grid h3 { margin:.1rem 0 .9rem; font-size:1.05rem; font-weight:500; display:flex; justify-content:space-between; gap:.6rem; align-items:center; }
         #MediaFlowConfigPage .mf-toast { display:none; position:fixed; right:1.4rem; bottom:1.4rem; z-index:10000; background:#222; border:1px solid rgba(255,255,255,.15); border-radius:8px; padding:.8rem 1rem; max-width:440px; box-shadow:0 8px 30px rgba(0,0,0,.35); }
@@ -139,6 +174,13 @@
             #MediaFlowConfigPage .mf-torrent-progress, #MediaFlowConfigPage .mf-torrent-actions { grid-column:1 / -1; }
             #MediaFlowConfigPage .mf-review-head { flex-direction:column; }
             #MediaFlowConfigPage .mf-review-searchbar { flex-wrap:wrap; }
+            #MediaFlowConfigPage .mf-rich-card { grid-template-columns:76px minmax(0,1fr); }
+            #MediaFlowConfigPage .mf-rich-cover, #MediaFlowConfigPage .mf-rich-cover-empty { width:76px; height:114px; }
+            #MediaFlowConfigPage .mf-rich-top, #MediaFlowConfigPage .mf-rich-progress { display:block; }
+            #MediaFlowConfigPage .mf-rich-actions { justify-content:flex-start; margin-top:.65rem; }
+            #MediaFlowConfigPage .mf-file-row { grid-template-columns:70px minmax(0,1fr); }
+            #MediaFlowConfigPage .mf-file-progress, #MediaFlowConfigPage .mf-hardlink { grid-column:2; }
+            #MediaFlowConfigPage .mf-log-row { grid-template-columns:1fr; gap:.25rem; }
         }
     </style>
 
@@ -168,6 +210,7 @@
                 <button class="mf-tab" type="button" data-tab="queue">Торренты <span id="mfTabTorrentCount" class="mf-tab-count">0</span></button>
                 <button class="mf-tab" type="button" data-tab="review">Нужно проверить <span id="mfTabReviewCount" class="mf-tab-count">0</span></button>
                 <button class="mf-tab" type="button" data-tab="history">История</button>
+                <button class="mf-tab" type="button" data-tab="logs">Логи</button>
                 <button class="mf-tab" type="button" data-tab="settings">Настройки</button>
             </div>
 
@@ -226,6 +269,26 @@
                         <tbody id="mfHistoryTable"></tbody>
                     </table>
                 </div>
+            </section>
+
+            <section id="mfPane-logs" class="mf-pane">
+                <div class="mf-section-title">
+                    <h3>Логи MediaFlow</h3>
+                    <div class="mf-secondary">Структурированные события самого MediaFlow: импорт, ошибки, TMDb review, сверка и административные действия.</div>
+                </div>
+                <div class="mf-log-toolbar">
+                    <input id="mfLogSearch" class="mf-search" type="text" placeholder="Поиск по сообщению, торренту или файлу" is="emby-input" />
+                    <select id="mfLogLevel" class="mf-select">
+                        <option value="all">Все уровни</option>
+                        <option value="Information">Information</option>
+                        <option value="Warning">Warning</option>
+                        <option value="Error">Error</option>
+                        <option value="Debug">Debug</option>
+                    </select>
+                    <button id="mfLogRefresh" type="button" class="mf-mini-btn">Обновить логи</button>
+                    <button id="mfLogClear" type="button" class="mf-mini-btn danger">Очистить</button>
+                </div>
+                <div id="mfLogList" class="mf-log-list"><div class="mf-empty">Логи ещё не загружены.</div></div>
             </section>
 
             <section id="mfPane-settings" class="mf-pane">
@@ -303,6 +366,8 @@
     ];
     const checkIds = ['Enabled','ManageSequentialEpisodes','BaselineExistingTorrentsOnFirstRun','DryRunMode','QbittorrentIgnoreTlsErrors'];
     const reviewSearchResults = new Map();
+    const torrentDetailsCache = new Map();
+    let logEntries = [];
     let overview = null;
 
     function api(method, path, body) {
@@ -392,6 +457,7 @@
         if (name === 'review') renderReview();
         if (name === 'queue') renderQueue();
         if (name === 'history') renderHistory();
+        if (name === 'logs') loadLogs(false);
     }
 
     function toast(message) {
@@ -413,13 +479,15 @@
 
     function torrentCard(t, compact) {
         const pct = Math.max(0, Math.min(100, Number(t.progress || 0) * 100));
-        const actions = '<div class="mf-actions">'
+        const sizeText = fmtBytes(t.downloaded) + ' / ' + fmtBytes(t.size);
+        const actions = '<div class="mf-rich-actions">'
+            + (!compact ? '<button type="button" class="mf-mini-btn" data-action="toggle-details" data-hash="' + esc(t.hash) + '">Файлы</button>' : '')
             + '<button type="button" class="mf-mini-btn" data-action="reconcile" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">Сверить</button>'
             + '<button type="button" class="mf-mini-btn primary" data-action="reprocess" data-hash="' + esc(t.hash) + '">Повторить поиск</button>'
             + '<details class="mf-action-menu">'
                 + '<summary class="mf-mini-btn">Ещё…</summary>'
                 + '<div class="mf-action-menu-pop">'
-                    + '<div class="mf-action-menu-note">Удаление выполняется отдельно: библиотека Jellyfin и qBittorrent не зависят друг от друга.</div>'
+                    + '<div class="mf-action-menu-note">Jellyfin и qBittorrent управляются независимо.</div>'
                     + '<button type="button" class="mf-mini-btn danger" data-action="delete-jellyfin" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">Удалить из Jellyfin</button>'
                     + '<button type="button" class="mf-mini-btn danger" data-action="delete-qb" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">Удалить из qBittorrent</button>'
                     + '<button type="button" class="mf-mini-btn danger" data-action="delete-qb-files" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">qBittorrent + исходные файлы</button>'
@@ -428,26 +496,125 @@
                 + '</div>'
             + '</details>'
             + '</div>';
-        const sizeText = fmtBytes(t.downloaded) + ' / ' + fmtBytes(t.size);
-        const hashText = compact ? esc(String(t.hash || '').slice(0, 12)) : esc(t.hash || '');
-        return '<article class="mf-torrent-card">'
-            + '<div class="mf-media-mark">' + esc(mediaMark(t.category)) + '</div>'
-            + '<div class="mf-torrent-main">'
-                + '<div class="mf-torrent-name" title="' + esc(t.name) + '">' + esc(t.name) + '</div>'
-                + '<div class="mf-torrent-meta">'
-                    + '<span class="mf-badge">' + esc(t.category || '—') + '</span>'
-                    + '<span class="mf-badge ' + statusClass(t.mediaFlowStatus) + '">' + esc(statusLabel(t.mediaFlowStatus)) + '</span>'
-                    + '<span class="mf-secondary">qB: ' + esc(t.qbState || '—') + '</span>'
+
+        return '<article class="mf-rich-card' + (compact ? ' compact' : '') + '" data-torrent-hash="' + esc(t.hash) + '">'
+            + '<div class="mf-cover-slot"><div class="mf-rich-cover-empty">' + esc(mediaMark(t.category)) + '</div></div>'
+            + '<div class="mf-rich-body">'
+                + '<div class="mf-rich-top">'
+                    + '<div style="min-width:0">'
+                        + '<div class="mf-rich-title" data-mf-title title="' + esc(t.name) + '">' + esc(t.name) + '</div>'
+                        + '<div class="mf-rich-release" data-mf-release>' + esc(t.name) + '</div>'
+                        + '<div class="mf-torrent-meta">'
+                            + '<span class="mf-badge">' + esc(t.category || '—') + '</span>'
+                            + '<span class="mf-badge ' + statusClass(t.mediaFlowStatus) + '">' + esc(statusLabel(t.mediaFlowStatus)) + '</span>'
+                            + '<span class="mf-secondary">qB: ' + esc(t.qbState || '—') + '</span>'
+                        + '</div>'
+                    + '</div>'
+                    + actions
                 + '</div>'
-                + '<div class="mf-hash" title="' + esc(t.hash) + '">' + hashText + '</div>'
+                + '<div class="mf-rich-progress">'
+                    + '<div>'
+                        + '<div class="mf-progress-row"><strong>' + pct.toFixed(1) + '%</strong><span class="mf-secondary">' + esc(sizeText) + '</span></div>'
+                        + '<div class="mf-progress"><span style="width:' + pct + '%"></span></div>'
+                    + '</div>'
+                    + '<div class="mf-rich-summary">' + torrentFileStats(t) + '</div>'
+                + '</div>'
+                + '<div class="mf-hash" title="' + esc(t.hash) + '">' + esc(String(t.hash || '').slice(0, compact ? 12 : 20)) + '</div>'
             + '</div>'
-            + '<div class="mf-torrent-progress">'
-                + '<div class="mf-progress-row"><strong>' + pct.toFixed(1) + '%</strong><span class="mf-secondary">' + esc(sizeText) + '</span></div>'
-                + '<div class="mf-progress"><span style="width:' + pct + '%"></span></div>'
-                + '<div class="mf-file-stats">' + torrentFileStats(t) + '</div>'
-            + '</div>'
-            + '<div class="mf-torrent-actions">' + actions + '</div>'
+            + (!compact ? '<div class="mf-details" data-mf-details><div class="mf-detail-loading">Нажмите «Файлы», чтобы загрузить TMDb-информацию и состояние эпизодов.</div></div>' : '')
         + '</article>';
+    }
+
+    function fileStateBadge(status) {
+        if (!status) return '<span class="mf-badge">Не отслеживается</span>';
+        return '<span class="mf-badge ' + statusClass(status) + '">' + esc(statusLabel(status)) + '</span>';
+    }
+
+    function renderTorrentFileRow(f) {
+        const pct = Math.max(0, Math.min(100, Number(f.progress || 0) * 100));
+        const episode = f.season != null && f.episode != null
+            ? 'S' + String(f.season).padStart(2, '0') + 'E' + String(f.episode).padStart(2, '0')
+            : (pct >= 99.999 ? 'FILE' : 'WAIT');
+        let linkText = '—';
+        let linkClass = 'warn';
+        if (f.sameHardlink === true) {
+            linkText = 'Hardlink OK';
+            linkClass = 'ok';
+        } else if (f.destinationExists && f.sameHardlink === false) {
+            linkText = 'Конфликт';
+            linkClass = 'err';
+        } else if (f.destinationExists) {
+            linkText = 'В Jellyfin';
+            linkClass = 'warn';
+        } else if (f.stateStatus === 'Imported') {
+            linkText = 'Нет в Jellyfin';
+            linkClass = 'err';
+        }
+        const title = f.message ? ' title="' + esc(f.message) + '"' : '';
+        return '<div class="mf-file-row"' + title + '>'
+            + '<div class="mf-file-episode">' + esc(episode) + '</div>'
+            + '<div class="mf-file-name" title="' + esc(f.name) + '">' + esc(f.name) + '<div class="mf-secondary">' + fmtBytes(f.size) + '</div></div>'
+            + '<div class="mf-file-progress">' + pct.toFixed(1) + '% · prio ' + esc(f.priority) + '<div style="margin-top:.25rem">' + fileStateBadge(f.stateStatus) + '</div></div>'
+            + '<div class="mf-hardlink ' + linkClass + '">' + esc(linkText) + '</div>'
+        + '</div>';
+    }
+
+    function renderTorrentDetails(details) {
+        const files = Array.isArray(details.files) ? details.files : [];
+        const media = details.media || null;
+        const mediaLine = media
+            ? '<span class="mf-badge info">TMDb #' + esc(media.tmdbId) + '</span>'
+                + '<span class="mf-badge">' + esc(media.kind || 'Media') + '</span>'
+                + (media.season != null ? '<span class="mf-badge">Season ' + esc(media.season) + '</span>' : '')
+            : '<span class="mf-secondary">TMDb identity ещё не сохранена для этого торрента.</span>';
+        return '<div class="mf-detail-head"><div><div class="mf-detail-title">Файлы и эпизоды</div><div class="mf-rich-summary">' + mediaLine + '</div></div>'
+            + '<div class="mf-secondary">' + esc(details.importedFiles || 0) + ' imported / ' + esc(details.completedFiles || 0) + ' downloaded / ' + esc(details.eligibleFiles || 0) + ' eligible</div></div>'
+            + '<div class="mf-file-list">' + (files.length ? files.map(renderTorrentFileRow).join('') : '<div class="mf-empty">Подходящих видеофайлов нет.</div>') + '</div>';
+    }
+
+    function applyTorrentIdentity(card, details) {
+        if (!card || !details) return;
+        const media = details.media;
+        if (media) {
+            const titleEl = card.querySelector('[data-mf-title]');
+            const releaseEl = card.querySelector('[data-mf-release]');
+            if (titleEl) titleEl.textContent = (media.title || details.name || 'Media') + (media.year ? ' (' + media.year + ')' : '');
+            if (releaseEl) releaseEl.textContent = details.name || '';
+            const slot = card.querySelector('.mf-cover-slot');
+            if (slot && media.posterPath) {
+                slot.innerHTML = '<img class="mf-rich-cover" loading="lazy" src="' + esc(posterBase + media.posterPath) + '" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';"><div class="mf-rich-cover-empty" style="display:none">' + esc(mediaMark(details.category)) + '</div>';
+            }
+        }
+    }
+
+    async function loadTorrentDetails(hash, card, expand) {
+        if (!hash || !card) return;
+        if (expand) card.classList.add('expanded');
+        const panel = card.querySelector('[data-mf-details]');
+        if (torrentDetailsCache.has(hash)) {
+            const cached = torrentDetailsCache.get(hash);
+            applyTorrentIdentity(card, cached);
+            if (panel) panel.innerHTML = renderTorrentDetails(cached);
+            return;
+        }
+        if (panel) panel.innerHTML = '<div class="mf-detail-loading">Загружаю файлы, hardlink-состояние и TMDb…</div>';
+        try {
+            const details = await api('GET', 'MediaFlow/Admin/torrents/' + encodeURIComponent(hash) + '/details?stamp=' + Date.now());
+            torrentDetailsCache.set(hash, details);
+            applyTorrentIdentity(card, details);
+            if (panel) panel.innerHTML = renderTorrentDetails(details);
+        } catch (err) {
+            if (panel) panel.innerHTML = '<div class="mf-empty">Не удалось загрузить детали торрента.</div>';
+            console.error(err);
+        }
+    }
+
+    function hydrateRecentCards() {
+        const cards = Array.from(page.querySelectorAll('#mfTorrentCards .mf-rich-card')).slice(0, 8);
+        cards.forEach(function(card) {
+            const hash = card.dataset.torrentHash;
+            loadTorrentDetails(hash, card, false);
+        });
     }
 
     function historyRow(h, compact) {
@@ -604,6 +771,7 @@
         page.querySelector('#mfTorrentCards').innerHTML = rows.length
             ? rows.map(function(x) { return torrentCard(x, false); }).join('')
             : '<div class="mf-empty">Ничего не найдено.</div>';
+        if (rows.length) setTimeout(hydrateRecentCards, 0);
     }
 
     function renderHistory() {
@@ -625,10 +793,53 @@
             : '<div class="mf-empty">Нет элементов, требующих ручной проверки.</div>';
     }
 
+    function logLevelBadge(level) {
+        const value = String(level || 'Information');
+        const cls = value === 'Error' ? 'err' : (value === 'Warning' ? 'warn' : (value === 'Information' ? 'ok' : 'info'));
+        return '<span class="mf-badge ' + cls + '">' + esc(value) + '</span>';
+    }
+
+    function renderLogs() {
+        const list = page.querySelector('#mfLogList');
+        if (!list) return;
+        const q = String(page.querySelector('#mfLogSearch').value || '').toLowerCase();
+        const level = page.querySelector('#mfLogLevel').value || 'all';
+        const rows = (logEntries || []).filter(function(x) {
+            const levelOk = level === 'all' || x.level === level;
+            const searchOk = !q || [x.message,x.source,x.torrentName,x.torrentHash,x.fileName].join(' ').toLowerCase().includes(q);
+            return levelOk && searchOk;
+        });
+        list.innerHTML = rows.length ? rows.map(function(x) {
+            const context = [x.torrentName, x.fileName, x.torrentHash ? String(x.torrentHash).slice(0, 12) : ''].filter(Boolean).join(' · ');
+            return '<div class="mf-log-row ' + String(x.level || '').toLowerCase() + '">'
+                + '<div class="mf-log-time">' + esc(fmtDate(x.timestamp)) + '</div>'
+                + '<div>' + logLevelBadge(x.level) + '</div>'
+                + '<div class="mf-log-source">' + esc(x.source || 'MediaFlow') + '</div>'
+                + '<div class="mf-log-message">' + esc(x.message || '') + (context ? '<div class="mf-log-context">' + esc(context) + '</div>' : '') + '</div>'
+            + '</div>';
+        }).join('') : '<div class="mf-empty">Лог пуст или фильтр ничего не нашёл.</div>';
+    }
+
+    async function loadLogs(showLoading) {
+        if (showLoading) Dashboard.showLoadingMsg();
+        try {
+            const r = await api('GET', 'MediaFlow/Admin/logs?limit=500&stamp=' + Date.now());
+            logEntries = Array.isArray(r.logs) ? r.logs : [];
+            renderLogs();
+        } catch (err) {
+            console.error(err);
+            const list = page.querySelector('#mfLogList');
+            if (list) list.innerHTML = '<div class="mf-empty">Не удалось загрузить логи MediaFlow.</div>';
+        } finally {
+            if (showLoading) Dashboard.hideLoadingMsg();
+        }
+    }
+
     async function refreshOverview(showLoading) {
         if (showLoading) Dashboard.showLoadingMsg();
         try {
             overview = await api('GET', 'MediaFlow/Admin/overview?stamp=' + Date.now());
+            torrentDetailsCache.clear();
             renderOverview();
         } catch (e) {
             console.error(e);
@@ -688,9 +899,17 @@
         if (!action) return;
 
         try {
-            if (action.dataset.action === 'reconcile') {
+            if (action.dataset.action === 'toggle-details') {
+                const card = action.closest('.mf-rich-card');
+                if (!card) return;
+                const willOpen = !card.classList.contains('expanded');
+                card.classList.toggle('expanded', willOpen);
+                action.textContent = willOpen ? 'Скрыть файлы' : 'Файлы';
+                if (willOpen) await loadTorrentDetails(action.dataset.hash, card, true);
+            } else if (action.dataset.action === 'reconcile') {
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/reconcile');
+                torrentDetailsCache.delete(action.dataset.hash);
                 toast('Сверка: qB ' + r.completedFiles + '/' + r.qBittorrentFiles
                     + ' готово · hardlink OK ' + r.healthyImported
                     + ' · нет в Jellyfin ' + r.missingInJellyfin
@@ -701,30 +920,35 @@
                 if (!confirm('Повторить поиск и внедрение для этого торрента?\n\nMediaFlow снимет baseline, очистит Failed / NeedsReview / Ignored и отпустит Imported-записи, если файл в Jellyfin отсутствует или больше не является тем же hardlink. Исправные Imported сохранятся.')) return;
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/reprocess');
+                torrentDetailsCache.delete(action.dataset.hash);
                 toast('Повторная обработка разрешена: очищено ' + r.removed + ', устаревших Imported ' + (r.staleImported || 0) + '.');
                 await refreshOverview(false);
             } else if (action.dataset.action === 'delete-jellyfin') {
                 if (!confirm('Удалить MediaFlow-файлы «' + (action.dataset.name || 'торрента') + '» из библиотеки Jellyfin?\n\nqBittorrent и исходные файлы останутся. MediaFlow временно поставит торрент в baseline, чтобы Worker не создал hardlink заново. Вернуть фильм/сериал можно кнопкой «Повторить поиск».')) return;
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/delete-jellyfin');
+                torrentDetailsCache.delete(action.dataset.hash);
                 toast('Jellyfin: удалено ' + r.deletedFiles + ' · уже отсутствовало ' + r.missingFiles + ' · конфликтов ' + r.conflicts + '.');
                 await refreshOverview(false);
             } else if (action.dataset.action === 'delete-qb') {
                 if (!confirm('Удалить «' + (action.dataset.name || 'торрент') + '» из qBittorrent?\n\nСкачанные исходные файлы останутся на диске. Jellyfin не изменяется.')) return;
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/delete-qbittorrent?deleteFiles=false');
+                torrentDetailsCache.delete(action.dataset.hash);
                 toast(r.message || 'Удалено из qBittorrent.');
                 await refreshOverview(false);
             } else if (action.dataset.action === 'delete-qb-files') {
                 if (!confirm('ВНИМАНИЕ: удалить «' + (action.dataset.name || 'торрент') + '» из qBittorrent И удалить исходные файлы раздачи?\n\nHardlink-файлы, уже находящиеся в Jellyfin, останутся. Это действие необратимо для исходной раздачи.')) return;
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/delete-qbittorrent?deleteFiles=true');
+                torrentDetailsCache.delete(action.dataset.hash);
                 toast(r.message || 'Torrent and source data removed.');
                 await refreshOverview(false);
             } else if (action.dataset.action === 'reset') {
                 if (!confirm('Полностью удалить состояние MediaFlow для «' + (action.dataset.name || 'торрента') + '»?\n\nФайлы в Jellyfin и qBittorrent не удаляются. Worker сможет заново обработать торрент.')) return;
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/reset');
+                torrentDetailsCache.delete(action.dataset.hash);
                 toast('Состояние сброшено. Удалено записей: ' + r.removed);
                 await refreshOverview(false);
             } else if (action.dataset.action === 'retry-state') {
@@ -788,6 +1012,24 @@
     page.querySelector('#mfTorrentSearch').addEventListener('input', renderQueue);
     page.querySelector('#mfTorrentFilter').addEventListener('change', renderQueue);
     page.querySelector('#mfHistorySearch').addEventListener('input', renderHistory);
+    page.querySelector('#mfLogSearch').addEventListener('input', renderLogs);
+    page.querySelector('#mfLogLevel').addEventListener('change', renderLogs);
+    page.querySelector('#mfLogRefresh').addEventListener('click', function() { loadLogs(true); });
+    page.querySelector('#mfLogClear').addEventListener('click', async function() {
+        if (!confirm('Очистить структурированный лог MediaFlow? История import state не будет удалена.')) return;
+        Dashboard.showLoadingMsg();
+        try {
+            await api('POST', 'MediaFlow/Admin/logs/clear');
+            logEntries = [];
+            renderLogs();
+            toast('Логи MediaFlow очищены.');
+        } catch (err) {
+            console.error(err);
+            toast('Не удалось очистить логи.');
+        } finally {
+            Dashboard.hideLoadingMsg();
+        }
+    });
     page.querySelector('#MediaFlowConfigForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         Dashboard.showLoadingMsg();
@@ -822,7 +1064,7 @@
 
     page.addEventListener('pageshow', initializePage);
     page.addEventListener('viewshow', initializePage);
-    console.info('MediaFlow UI v0.1.12 script loaded');
+    console.info('MediaFlow UI v0.1.13 script loaded');
     queueMicrotask(initializePage);
 })();
 </script>
