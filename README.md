@@ -4,7 +4,7 @@ MediaFlow is a Jellyfin server plugin that automates the path from **qBittorrent
 
 It works at the **individual file level**, so completed episodes can be imported without waiting for an entire season pack to finish.
 
-> Current development target: **MediaFlow 0.1.16 · Jellyfin 10.11.11 · .NET 9**
+> Current development target: **MediaFlow 0.1.20 · Jellyfin 10.11.11 · .NET 9**
 
 ## What MediaFlow does
 
@@ -66,7 +66,7 @@ Connection indicators are shown for:
 
 The Torrents page can lazily load detailed information for a torrent. MediaFlow now resolves a **torrent-level TMDb identity before the first video file has finished downloading**, so a newly added movie or season pack can receive its localized title, year and poster almost immediately. The original release name remains visible below it.
 
-For TV torrents, the card title also shows the season set detected from the files, for example `Тед Лассо (2020) — Сезон 2` or `Доктор Кто (2005) — Сезоны 1–2–3`. The same torrent-level identity is reused when individual episodes finish, avoiding a full TMDb search for every episode.
+For TV torrents, the card title stays clean (`Тед Лассо (2020)`), while detected seasons are shown as separate season chips next to the torrent status, for example `Сезон 1`, `Сезон 2`, `Сезон 3`. Compact Overview cards show up to three season chips and collapse the remainder into a `+N` chip. The same torrent-level identity is reused when individual episodes finish, avoiding a full TMDb search for every episode.
 
 Expanding a card shows eligible video files and, for TV releases, parsed `SxxExx` information together with:
 

@@ -61,6 +61,8 @@
         #MediaFlowConfigPage .mf-badge.warn { background:rgba(241,179,52,.18); color:#f1c15b; }
         #MediaFlowConfigPage .mf-badge.err { background:rgba(230,79,79,.18); color:#ff8585; }
         #MediaFlowConfigPage .mf-badge.info { background:rgba(0,164,220,.18); color:#60c8eb; }
+        #MediaFlowConfigPage .mf-badge.season { background:rgba(130,95,210,.18); color:#c7b6ff; }
+        #MediaFlowConfigPage .mf-season-chips { display:inline-flex; gap:.32rem; align-items:center; flex-wrap:wrap; }
         #MediaFlowConfigPage .mf-progress { width:100%; height:7px; border-radius:999px; overflow:hidden; background:rgba(255,255,255,.11); }
         #MediaFlowConfigPage .mf-progress > span { display:block; height:100%; background:var(--mf-accent); border-radius:inherit; }
         #MediaFlowConfigPage .mf-mini-btn { appearance:none; -webkit-appearance:none; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.055); color:inherit; border-radius:7px; padding:.48rem .72rem; cursor:pointer; }
@@ -553,6 +555,7 @@
                         + '<div class="mf-torrent-meta">'
                             + '<span class="mf-badge">' + esc(t.category || '—') + '</span>'
                             + '<span class="mf-badge ' + statusClass(displayStatus) + '">' + esc(statusLabel(displayStatus)) + '</span>'
+                            + '<span data-mf-seasons></span>'
                             + '<span class="mf-secondary">qB: ' + esc(t.qbState || '—') + '</span>'
                         + '</div>'
                     + '</div>'
@@ -652,14 +655,24 @@
         return tr('season.many', {seasons:seasons.join('–')});
     }
 
+    function seasonChipsHtml(media, compact) {
+        const seasons = normalizedSeasons(media);
+        if (!seasons.length) return '';
+        const maxVisible = compact ? 3 : seasons.length;
+        const visible = seasons.slice(0, maxVisible);
+        let html = '<span class="mf-season-chips">'
+            + visible.map(function(season) {
+                return '<span class="mf-badge season">' + esc(tr('season.one', {season:season})) + '</span>';
+            }).join('');
+        if (seasons.length > visible.length) {
+            html += '<span class="mf-badge season">+' + esc(seasons.length - visible.length) + '</span>';
+        }
+        return html + '</span>';
+    }
+
     function mediaDisplayTitle(media, fallback) {
         if (!media) return fallback || tr('media.generic');
-        let value = (media.title || fallback || 'Media') + (media.year ? ' (' + media.year + ')' : '');
-        if (String(media.kind || '').toLowerCase() === 'episode') {
-            const season = seasonLabel(media);
-            if (season) value += ' — ' + season;
-        }
-        return value;
+        return (media.title || fallback || 'Media') + (media.year ? ' (' + media.year + ')' : '');
     }
 
     function renderTorrentDetails(details) {
@@ -668,7 +681,7 @@
         const mediaLine = media
             ? '<span class="mf-badge info">TMDb #' + esc(media.tmdbId) + '</span>'
                 + '<span class="mf-badge">' + esc(media.kind || 'Media') + '</span>'
-                + (seasonLabel(media) ? '<span class="mf-badge">' + esc(seasonLabel(media)) + '</span>' : '')
+                + seasonChipsHtml(media, false)
             : '<span class="mf-secondary">' + esc(details.identityStatus === 'IdentityNeedsReview' ? tr('identity.review') : (details.identityStatus === 'IdentityFailed' ? tr('identity.failed', {message:details.identityMessage || tr('identity.error')}) : tr('identity.pending'))) + '</span>';
         return '<div class="mf-detail-head"><div><div class="mf-detail-title">' + esc(tr('torrent.filesTitle')) + '</div><div class="mf-rich-summary">' + mediaLine + '</div></div>'
             + '<div class="mf-secondary">' + esc(tr('torrent.detailsSummary', {imported:details.importedFiles || 0, downloaded:details.completedFiles || 0, eligible:details.eligibleFiles || 0})) + '</div></div>'
@@ -683,6 +696,8 @@
             const releaseEl = card.querySelector('[data-mf-release]');
             if (titleEl) titleEl.textContent = mediaDisplayTitle(media, details.name || tr('media.generic'));
             if (releaseEl) releaseEl.textContent = details.name || '';
+            const seasonsEl = card.querySelector('[data-mf-seasons]');
+            if (seasonsEl) seasonsEl.innerHTML = seasonChipsHtml(media, card.classList.contains('compact'));
             const slot = card.querySelector('.mf-cover-slot');
             if (slot && media.posterPath) {
                 slot.innerHTML = '<img class="mf-rich-cover" loading="lazy" src="' + esc(posterBase + media.posterPath) + '" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';"><div class="mf-rich-cover-empty" style="display:none">' + esc(mediaMark(details.category)) + '</div>';
@@ -1181,7 +1196,7 @@
 
     page.addEventListener('pageshow', initializePage);
     page.addEventListener('viewshow', initializePage);
-    console.info('MediaFlow UI v0.1.18 script loaded');
+    console.info('MediaFlow UI v0.1.20 script loaded');
     queueMicrotask(initializePage);
 })();
 </script>
