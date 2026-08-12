@@ -562,6 +562,9 @@
         const sizeText = fmtBytes(t.downloaded) + ' / ' + fmtBytes(t.size);
         const displayStatus = effectiveTorrentStatus(t);
         const qbStatus = qbStatusInfo(t.qbState);
+        const mediaStatusChip = displayStatus === 'Downloading'
+            ? ''
+            : '<span class="mf-badge ' + statusClass(displayStatus) + '">' + esc(statusLabel(displayStatus)) + '</span>';
         const actions = '<div class="mf-rich-actions">'
             + (!compact ? '<button type="button" class="mf-mini-btn" data-action="toggle-details" data-hash="' + esc(t.hash) + '">' + esc(tr('common.files')) + '</button>' : '')
             + '<button type="button" class="mf-mini-btn" data-action="reconcile" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">' + esc(tr('common.reconcile')) + '</button>'
@@ -588,7 +591,7 @@
                         + '<div class="mf-rich-release" data-mf-release>' + esc(t.name) + '</div>'
                         + '<div class="mf-torrent-meta">'
                             + '<span class="mf-badge">' + esc(t.category || '—') + '</span>'
-                            + '<span class="mf-badge ' + statusClass(displayStatus) + '">' + esc(statusLabel(displayStatus)) + '</span>'
+                            + mediaStatusChip
                             + '<span data-mf-seasons></span>'
                             + '<span class="mf-badge ' + esc(qbStatus.className) + '">' + esc(qbStatus.label) + '</span>'
                         + '</div>'
@@ -846,15 +849,16 @@
 
     function reviewItem(h) {
         const candidates = reviewSearchResults.has(h.key) ? reviewSearchResults.get(h.key) : (Array.isArray(h.reviewCandidates) ? h.reviewCandidates : []);
-        const canManual = h.kind === 'Movie' || h.kind === 'Episode';
+        const isLegacyReview = h.kind !== 'Movie' && h.kind !== 'Episode';
         const episodeText = h.kind === 'Episode' && h.season != null && h.episode != null
             ? '<span class="mf-badge info">S' + String(h.season).padStart(2, '0') + 'E' + String(h.episode).padStart(2, '0') + '</span>'
             : '';
         const candidateHtml = candidates.length
             ? candidates.map(function(c) { return candidateCard(c, h.key); }).join('')
             : '<div class="mf-empty">' + esc(tr('review.noCandidates')) + '</div>';
-        const searchDisabled = canManual ? '' : ' disabled';
-        const oldEntryNote = canManual ? '' : '<div class="mf-review-reason">' + esc(tr('review.oldEntry')) + '</div>';
+        const oldEntryNote = isLegacyReview
+            ? '<div class="mf-review-reason">' + esc(tr('review.oldEntry')) + '</div>'
+            : '';
 
         return '<article class="mf-review-item" data-review-key="' + esc(h.key) + '">'
             + '<div class="mf-review-head">'
@@ -872,8 +876,8 @@
             + '</div>'
             + '<div class="mf-review-body">'
                 + '<div class="mf-review-searchbar">'
-                    + '<input class="mf-review-search" type="text" is="emby-input" placeholder="" data-i18n-placeholder="search.review"' + searchDisabled + ' />'
-                    + '<button type="button" class="mf-mini-btn" data-action="review-search" data-key="' + esc(h.key) + '"' + searchDisabled + '>' + esc(tr('common.searchTmdb')) + '</button>'
+                    + '<input class="mf-review-search" type="text" is="emby-input" placeholder="" data-i18n-placeholder="search.review" />'
+                    + '<button type="button" class="mf-mini-btn" data-action="review-search" data-key="' + esc(h.key) + '">' + esc(tr('common.searchTmdb')) + '</button>'
                 + '</div>'
                 + '<div class="mf-candidates">' + candidateHtml + '</div>'
             + '</div>'

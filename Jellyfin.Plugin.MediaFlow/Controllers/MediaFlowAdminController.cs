@@ -581,9 +581,11 @@ public sealed class MediaFlowAdminController : ControllerBase
             return BadRequest(new { message = "The selected state entry is no longer waiting for review." });
         }
 
+        entry = await EnrichLegacyReviewEntryAsync(entry, key, cancellationToken).ConfigureAwait(false);
+
         if (entry.Kind is not MediaKind.Movie and not MediaKind.Episode)
         {
-            return BadRequest(new { message = "This review entry predates manual matching metadata. Use Retry once to rebuild it." });
+            return BadRequest(new { message = "Media type could not be determined for this review entry. Use Retry analysis or fix the torrent category." });
         }
 
         var found = await _tmdb.SearchAsync(entry.Kind.Value, query.Trim(), null, cancellationToken).ConfigureAwait(false);
@@ -644,9 +646,11 @@ public sealed class MediaFlowAdminController : ControllerBase
             return BadRequest(new { message = "The selected state entry is no longer waiting for review." });
         }
 
+        entry = await EnrichLegacyReviewEntryAsync(entry, request.Key, cancellationToken).ConfigureAwait(false);
+
         if (entry.Kind is not MediaKind.Movie and not MediaKind.Episode)
         {
-            return BadRequest(new { message = "This review entry predates manual matching metadata. Use Retry once to rebuild it." });
+            return BadRequest(new { message = "Media type could not be determined for this review entry. Use Retry analysis or fix the torrent category." });
         }
 
         if (!System.IO.File.Exists(entry.SourcePath))
@@ -910,6 +914,80 @@ public sealed class MediaFlowAdminController : ControllerBase
     {
         var separator = key.IndexOf(':');
         return separator > 0 ? key[..separator] : string.Empty;
+    }
+
+    private async Task<ImportStateEntry> EnrichLegacyReviewEntryAsync(
+        ImportStateEntry entry,
+        string key,
+        CancellationToken cancellationToken)
+    {
+        var needsKind = entry.Kind is not MediaKind.Movie and not MediaKind.Episode;
+        var needsEpisodeNumbers = entry.Kind == MediaKind.Episode
+            && (!entry.Season.HasValue || !entry.Episode.HasValue);
+
+        if (!needsKind && !needsEpisodeNumbers)
+        {
+            return entry;
+        }
+
+        var torrentHash = GetTorrentHash(key);
+        var torrentName = string.Empty;
+        var categoryKind = MediaKind.Unknown;
+
+        try
+        {
+            var config = Plugin.Instance?.Configuration;
+            var torrents = await _qbittorrent.GetTorrentsAsync(cancellationToken).ConfigureAwait(false);
+            var torrent = torrents.FirstOrDefault(x =>
+                string.Equals(x.Hash, torrentHash, StringComparison.OrdinalIgnoreCase));
+
+            if (torrent is not null)
+            {
+                torrentName = torrent.Name;
+                if (config is not null)
+                {
+                    categoryKind = GetCategoryKind(torrent.Category, config);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Manual review should remain usable even when qBittorrent is temporarily unavailable.
+            // The parser can still recover metadata from the source filename.
+        }
+
+        var relativeName = Path.GetFileName(entry.SourcePath);
+        if (string.IsNullOrWhiteSpace(relativeName))
+        {
+            return entry;
+        }
+
+        try
+        {
+            var parsed = _parser.Parse(entry.SourcePath, torrentName, relativeName);
+
+            if (categoryKind != MediaKind.Unknown)
+            {
+                parsed.Kind = categoryKind;
+            }
+
+            if (entry.Kind is not MediaKind.Movie and not MediaKind.Episode)
+            {
+                entry.Kind = parsed.Kind;
+            }
+
+            entry.Season ??= parsed.Season;
+            entry.Episode ??= parsed.Episode;
+
+            await _state.SetAsync(entry, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Keep the review entry intact. SearchReview/ApproveReview will return a
+            // meaningful validation error if the required metadata is still unavailable.
+        }
+
+        return entry;
     }
 
     private static void ValidateHash(string hash)

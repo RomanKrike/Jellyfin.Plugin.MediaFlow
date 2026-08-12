@@ -128,7 +128,7 @@
   "review.episode": "Episode: {title}",
   "review.untitled": "Untitled",
   "review.noCandidates": "No saved candidates. Search TMDb or click Retry analysis.",
-  "review.oldEntry": "This entry was created by an older MediaFlow version. Click Retry analysis to rebuild media type and candidates.",
+  "review.oldEntry": "This entry was created by an older MediaFlow version. Manual search is available: the plugin will try to recover media type and episode numbers from the file and torrent names.",
   "review.defaultReason": "TMDb match needs confirmation.",
   "review.none": "No items require manual review.",
   "empty.history": "History is empty.",

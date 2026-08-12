@@ -221,10 +221,14 @@ public sealed partial class MediaParser
     {
         var original = Path.GetFileNameWithoutExtension(raw);
         var value = BracketNoiseRegex().Replace(original, " ");
-        var hasEpisodeMarker = EpisodeRegex().IsMatch(value) || AltEpisodeRegex().IsMatch(value) || RussianEpisodeRegex().IsMatch(value);
+        var hasEpisodeMarker = EpisodeRegex().IsMatch(value)
+            || AltEpisodeRegex().IsMatch(value)
+            || RussianEpisodeRegex().IsMatch(value)
+            || TrailingEpisodeOnlyRegex().IsMatch(value);
         value = EpisodeRegex().Replace(value, " ");
         value = AltEpisodeRegex().Replace(value, " ");
         value = RussianEpisodeRegex().Replace(value, " ");
+        value = TrailingEpisodeOnlyRegex().Replace(value, " ");
         value = SeasonPackRegex().Replace(value, " ");
         value = StandaloneSeasonRegex().Replace(value, " ");
         value = SeparatorRegex().Replace(value, " ");
@@ -285,7 +289,8 @@ public sealed partial class MediaParser
         {
             EpisodeRegex().Match(value),
             AltEpisodeRegex().Match(value),
-            RussianEpisodeRegex().Match(value)
+            RussianEpisodeRegex().Match(value),
+            TrailingEpisodeOnlyRegex().Match(value)
         }.Where(x => x.Success).OrderBy(x => x.Index).ToList();
 
         if (matches.Count == 0)
@@ -308,8 +313,22 @@ public sealed partial class MediaParser
         var season = FindSeason(fileBase)
             ?? directories.Select(FindSeason).FirstOrDefault(x => x.HasValue)
             ?? FindSeason(torrentName);
-        var episode = FindEpisodeOnly(fileBase);
-        return season.HasValue && episode.HasValue ? (season.Value, episode.Value) : null;
+
+        // Explicit episode-only filenames are common for miniseries and Rutracker-style
+        // releases, e.g. "North & South ... 1 серия.mkv". When no season is declared
+        // anywhere, treat an explicit episode marker as season 1.
+        var explicitEpisode = FindExplicitEpisodeOnly(fileBase);
+        if (explicitEpisode.HasValue)
+        {
+            return (season ?? 1, explicitEpisode.Value);
+        }
+
+        // Bare leading numbers are weaker evidence, so only accept them when a season
+        // is known from the filename/folder/torrent context.
+        var leadingEpisode = FindLeadingEpisodeOnly(fileBase);
+        return season.HasValue && leadingEpisode.HasValue
+            ? (season.Value, leadingEpisode.Value)
+            : null;
     }
 
     private static (int Season, int Episode)? FindEpisode(string value)
@@ -346,7 +365,7 @@ public sealed partial class MediaParser
         return match.Success ? ParseInt(match.Groups["s"].Value) : null;
     }
 
-    private static int? FindEpisodeOnly(string value)
+    private static int? FindExplicitEpisodeOnly(string value)
     {
         var match = EpisodeOnlyRegex().Match(value);
         if (match.Success)
@@ -354,7 +373,13 @@ public sealed partial class MediaParser
             return ParseInt(match.Groups["e"].Value);
         }
 
-        match = LeadingEpisodeRegex().Match(value);
+        match = TrailingEpisodeOnlyRegex().Match(value);
+        return match.Success ? ParseInt(match.Groups["e"].Value) : null;
+    }
+
+    private static int? FindLeadingEpisodeOnly(string value)
+    {
+        var match = LeadingEpisodeRegex().Match(value);
         return match.Success ? ParseInt(match.Groups["e"].Value) : null;
     }
 
@@ -394,6 +419,9 @@ public sealed partial class MediaParser
 
     [GeneratedRegex(@"(?i)(?:^|[ ._\-\[])(?:E|EP|Episode|Серия)[ ._:\-]*(?<e>\d{1,3})(?:[ ._\-\]]|$)")]
     private static partial Regex EpisodeOnlyRegex();
+
+    [GeneratedRegex(@"(?i)(?:^|[ ._\-\[])(?<e>\d{1,3})[ ._:\-]*(?:серия|серии|episode|ep)(?:[ ._\-\]]|$)")]
+    private static partial Regex TrailingEpisodeOnlyRegex();
 
     [GeneratedRegex(@"^(?<e>\d{1,3})(?:[ ._\-]|$)")]
     private static partial Regex LeadingEpisodeRegex();
