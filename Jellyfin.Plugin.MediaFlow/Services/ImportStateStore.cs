@@ -7,6 +7,7 @@ namespace Jellyfin.Plugin.MediaFlow.Services;
 public sealed class ImportStateStore
 {
     private const string BaselineTorrentPrefix = "__mediaflow_torrent_baseline:";
+    private const string TorrentIdentityPrefix = "__mediaflow_torrent_identity:";
     private readonly ILogger<ImportStateStore> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private Dictionary<string, ImportStateEntry>? _entries;
@@ -83,7 +84,7 @@ public sealed class ImportStateStore
 
     /// <summary>
     /// Safely makes a torrent eligible for processing again while preserving healthy imported file entries.
-    /// Removes the torrent baseline plus Failed/NeedsReview/Ignored entries for this torrent.
+    /// Removes the torrent baseline, cached torrent identity and Failed/NeedsReview/Ignored entries for this torrent.
     /// </summary>
     public async Task<int> ReprocessTorrentAsync(string hash, CancellationToken cancellationToken)
     {
@@ -94,8 +95,10 @@ public sealed class ImportStateStore
             var entries = _entries ?? throw new InvalidOperationException("MediaFlow state is not loaded.");
             var filePrefix = hash + ":";
             var baselineKey = BaselineTorrentPrefix + hash;
+            var identityKey = TorrentIdentityPrefix + hash;
             var keys = entries
                 .Where(x => string.Equals(x.Key, baselineKey, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(x.Key, identityKey, StringComparison.OrdinalIgnoreCase)
                     || (x.Key.StartsWith(filePrefix, StringComparison.OrdinalIgnoreCase)
                         && (string.Equals(x.Value.Status, "Failed", StringComparison.OrdinalIgnoreCase)
                             || string.Equals(x.Value.Status, "NeedsReview", StringComparison.OrdinalIgnoreCase)
@@ -122,7 +125,7 @@ public sealed class ImportStateStore
     }
 
     /// <summary>
-    /// Removes every state entry for a torrent, including Imported entries and its baseline marker.
+    /// Removes every state entry for a torrent, including Imported entries, cached identity and its baseline marker.
     /// The global baseline marker is intentionally never touched.
     /// </summary>
     public async Task<int> ResetTorrentAsync(string hash, CancellationToken cancellationToken)
@@ -134,9 +137,11 @@ public sealed class ImportStateStore
             var entries = _entries ?? throw new InvalidOperationException("MediaFlow state is not loaded.");
             var filePrefix = hash + ":";
             var baselineKey = BaselineTorrentPrefix + hash;
+            var identityKey = TorrentIdentityPrefix + hash;
             var keys = entries
                 .Keys
                 .Where(x => string.Equals(x, baselineKey, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(x, identityKey, StringComparison.OrdinalIgnoreCase)
                     || x.StartsWith(filePrefix, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 

@@ -9,10 +9,12 @@ public sealed class MediaFlowWorker : BackgroundService
 {
     private const string BaselineMarkerKey = "__mediaflow_baseline_v1";
     private const string BaselineTorrentPrefix = "__mediaflow_torrent_baseline:";
+    private const string TorrentIdentityPrefix = "__mediaflow_torrent_identity:";
 
     private readonly QbittorrentClient _qbittorrent;
     private readonly MediaParser _parser;
     private readonly MediaResolver _resolver;
+    private readonly TmdbClient _tmdb;
     private readonly PathMapper _pathMapper;
     private readonly HardLinkService _hardLinks;
     private readonly ImportStateStore _state;
@@ -25,6 +27,7 @@ public sealed class MediaFlowWorker : BackgroundService
         QbittorrentClient qbittorrent,
         MediaParser parser,
         MediaResolver resolver,
+        TmdbClient tmdb,
         PathMapper pathMapper,
         HardLinkService hardLinks,
         ImportStateStore state,
@@ -35,6 +38,7 @@ public sealed class MediaFlowWorker : BackgroundService
         _qbittorrent = qbittorrent;
         _parser = parser;
         _resolver = resolver;
+        _tmdb = tmdb;
         _pathMapper = pathMapper;
         _hardLinks = hardLinks;
         _state = state;
@@ -109,6 +113,16 @@ public sealed class MediaFlowWorker : BackgroundService
 
             var files = await _qbittorrent.GetFilesAsync(torrent.Hash, cancellationToken).ConfigureAwait(false);
 
+            // Identify the torrent before the first media file finishes downloading.
+            // This gives the admin UI a TMDb title/poster immediately and also lets
+            // completed episodes reuse one torrent-level series match instead of
+            // running a full TMDb search for every episode.
+            var torrentIdentity = await EnsureTorrentIdentityAsync(
+                torrent,
+                files,
+                categoryKind,
+                cancellationToken).ConfigureAwait(false);
+
             if (config.ManageSequentialEpisodes && categoryKind == MediaKind.Episode)
             {
                 await ApplyStrictEpisodeSequenceAsync(torrent, files, cancellationToken).ConfigureAwait(false);
@@ -147,7 +161,31 @@ public sealed class MediaFlowWorker : BackgroundService
 
                     var parsed = _parser.Parse(sourcePath, torrent.Name, file.Name);
                     ApplyCategoryKind(parsed, categoryKind);
-                    var resolution = await _resolver.ResolveAsync(parsed, cancellationToken).ConfigureAwait(false);
+
+                    ResolutionResult resolution;
+                    if (CanReuseTorrentIdentity(torrentIdentity, parsed))
+                    {
+                        var candidate = await _tmdb.GetCandidateByIdAsync(
+                            parsed.Kind,
+                            torrentIdentity!.TmdbId!.Value,
+                            parsed.Season,
+                            parsed.Episode,
+                            cancellationToken).ConfigureAwait(false);
+                        candidate.Score = 100;
+                        candidate.Reasons.Add("torrentIdentity=cached");
+                        resolution = new ResolutionResult
+                        {
+                            AutoApproved = true,
+                            Selected = candidate,
+                            Candidates = [candidate],
+                            Reason = "Reused torrent-level TMDb identity #" + candidate.Id + "."
+                        };
+                    }
+                    else
+                    {
+                        resolution = await _resolver.ResolveAsync(parsed, cancellationToken).ConfigureAwait(false);
+                    }
+
                     if (!resolution.AutoApproved || resolution.Selected is null)
                     {
                         var top = FormatCandidates(resolution.Candidates);
@@ -168,6 +206,17 @@ public sealed class MediaFlowWorker : BackgroundService
                         _logger.LogWarning("NEEDS REVIEW: {File}. {Reason}. Candidates: {Candidates}", file.Name, resolution.Reason, top);
                         await _activityLog.AddAsync("Warning", "Resolver", "Needs review: " + resolution.Reason, cancellationToken, torrent.Hash, torrent.Name, file.Name).ConfigureAwait(false);
                         continue;
+                    }
+
+                    if (torrentIdentity?.TmdbId is not > 0)
+                    {
+                        torrentIdentity = await SaveMatchedTorrentIdentityAsync(
+                            torrent,
+                            files,
+                            categoryKind,
+                            resolution.Selected,
+                            resolution.Reason,
+                            cancellationToken).ConfigureAwait(false);
                     }
 
                     var destination = ImportPlanner.BuildDestination(parsed, resolution.Selected);
@@ -321,6 +370,223 @@ public sealed class MediaFlowWorker : BackgroundService
 
         _lastDryRunSignature = signature;
         _logger.LogWarning("MediaFlow DRY RUN END: {Torrent}. No files were changed.", torrent.Name);
+    }
+
+    private async Task<ImportStateEntry?> EnsureTorrentIdentityAsync(
+        QbTorrent torrent,
+        IReadOnlyList<QbTorrentFile> files,
+        MediaKind categoryKind,
+        CancellationToken cancellationToken)
+    {
+        var key = TorrentIdentityPrefix + torrent.Hash;
+        var existing = await _state.GetAsync(key, cancellationToken).ConfigureAwait(false);
+        if (existing?.TmdbId is > 0 && string.Equals(existing.Status, "IdentityMatched", StringComparison.OrdinalIgnoreCase))
+        {
+            return existing;
+        }
+
+        // A low-confidence identity should not hammer TMDb every poll cycle. Reprocess
+        // explicitly removes the identity record when the user wants another search.
+        if (existing is not null
+            && string.Equals(existing.Status, "IdentityNeedsReview", StringComparison.OrdinalIgnoreCase))
+        {
+            return existing;
+        }
+
+        var config = Plugin.Instance!.Configuration;
+        if (existing is not null
+            && string.Equals(existing.Status, "IdentityFailed", StringComparison.OrdinalIgnoreCase)
+            && DateTimeOffset.UtcNow - existing.UpdatedAt < TimeSpan.FromMinutes(config.RetryFailedAfterMinutes))
+        {
+            return existing;
+        }
+
+        var eligible = files
+            .Where(IsVideoFile)
+            .Where(x => x.Size >= config.MinimumVideoSizeMb * 1024L * 1024L)
+            .Where(x => !IsSample(x.Name))
+            .ToList();
+        if (eligible.Count == 0)
+        {
+            return existing;
+        }
+
+        var seasons = DetectTorrentSeasons(torrent, eligible);
+        var representative = categoryKind == MediaKind.Episode
+            ? eligible
+                .Select(x => (File: x, Numbers: _parser.FindEpisodeNumbers(x.Name, torrent.Name)))
+                .OrderBy(x => x.Numbers?.Season ?? int.MaxValue)
+                .ThenBy(x => x.Numbers?.Episode ?? int.MaxValue)
+                .ThenBy(x => x.File.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(x => x.File)
+                .First()
+            : eligible.OrderByDescending(x => x.Size).First();
+
+        try
+        {
+            var sourcePath = _pathMapper.BuildAndMap(torrent.SavePath, representative.Name);
+            var parsed = _parser.Parse(sourcePath, torrent.Name, representative.Name);
+            ApplyCategoryKind(parsed, categoryKind);
+            if (parsed.Kind == MediaKind.Unknown || parsed.Titles.Count == 0)
+            {
+                return existing;
+            }
+
+            var resolution = await _resolver.ResolveAsync(parsed, cancellationToken).ConfigureAwait(false);
+            if (!resolution.AutoApproved || resolution.Selected is null)
+            {
+                var review = new ImportStateEntry
+                {
+                    Key = key,
+                    Status = "IdentityNeedsReview",
+                    SourcePath = torrent.SavePath,
+                    Kind = categoryKind,
+                    Season = seasons.Count == 1 ? seasons[0] : null,
+                    Seasons = seasons,
+                    Message = resolution.Reason,
+                    ReviewCandidates = resolution.Candidates
+                        .Take(6)
+                        .Select(ReviewCandidateSnapshot.FromCandidate)
+                        .ToList()
+                };
+                await _state.SetAsync(review, cancellationToken).ConfigureAwait(false);
+                await _activityLog.AddAsync(
+                    "Warning",
+                    "Identity",
+                    "Torrent identity needs review: " + resolution.Reason,
+                    cancellationToken,
+                    torrent.Hash,
+                    torrent.Name,
+                    representative.Name).ConfigureAwait(false);
+                return review;
+            }
+
+            return await SaveMatchedTorrentIdentityAsync(
+                torrent,
+                files,
+                categoryKind,
+                resolution.Selected,
+                resolution.Reason,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            var failed = new ImportStateEntry
+            {
+                Key = key,
+                Status = "IdentityFailed",
+                SourcePath = torrent.SavePath,
+                Kind = categoryKind,
+                Season = seasons.Count == 1 ? seasons[0] : null,
+                Seasons = seasons,
+                Message = ex.Message
+            };
+            await _state.SetAsync(failed, cancellationToken).ConfigureAwait(false);
+            _logger.LogWarning(ex, "Could not resolve torrent-level identity for {Torrent}", torrent.Name);
+            await _activityLog.AddAsync(
+                "Warning",
+                "Identity",
+                "Torrent-level TMDb identification failed: " + ex.Message,
+                cancellationToken,
+                torrent.Hash,
+                torrent.Name,
+                representative.Name).ConfigureAwait(false);
+            return failed;
+        }
+    }
+
+    private async Task<ImportStateEntry> SaveMatchedTorrentIdentityAsync(
+        QbTorrent torrent,
+        IReadOnlyList<QbTorrentFile> files,
+        MediaKind categoryKind,
+        TmdbCandidate candidate,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        var seasons = DetectTorrentSeasons(torrent, files.Where(IsVideoFile));
+        var identity = new ImportStateEntry
+        {
+            Key = TorrentIdentityPrefix + torrent.Hash,
+            Status = "IdentityMatched",
+            SourcePath = torrent.SavePath,
+            TmdbId = candidate.Id,
+            Kind = categoryKind,
+            Season = seasons.Count == 1 ? seasons[0] : null,
+            Seasons = seasons,
+            MediaTitle = candidate.Title,
+            MediaYear = candidate.Year,
+            PosterPath = candidate.PosterPath,
+            Message = reason
+        };
+        await _state.SetAsync(identity, cancellationToken).ConfigureAwait(false);
+        await _activityLog.AddAsync(
+            "Information",
+            "Identity",
+            "Torrent identified as " + candidate.Title + " (TMDb #" + candidate.Id + ").",
+            cancellationToken,
+            torrent.Hash,
+            torrent.Name).ConfigureAwait(false);
+        return identity;
+    }
+
+    private List<int> DetectTorrentSeasons(QbTorrent torrent, IEnumerable<QbTorrentFile> files)
+    {
+        var seasons = new SortedSet<int>();
+        foreach (var file in files)
+        {
+            var numbers = _parser.FindEpisodeNumbers(file.Name, torrent.Name);
+            if (numbers.HasValue && numbers.Value.Season >= 0 && numbers.Value.Season <= 999)
+            {
+                seasons.Add(numbers.Value.Season);
+            }
+        }
+
+        // Some multi-season packs use generic episode filenames but declare the
+        // season range in the torrent name, e.g. "Season 1-3" / "Сезон: 1-3".
+        // Merge that declaration as a fallback so the card can still show all seasons.
+        var rangeMatches = System.Text.RegularExpressions.Regex.Matches(
+            torrent.Name,
+            @"(?i)(?:S|Season[ ._:\-]*|Сезон[ ._:\-]*)(?<from>\d{1,2})[ ._:\-]*(?:-|–|—|to|до)[ ._:\-]*(?:S|Season[ ._:\-]*|Сезон[ ._:\-]*)?(?<to>\d{1,2})");
+        foreach (System.Text.RegularExpressions.Match match in rangeMatches)
+        {
+            if (!int.TryParse(match.Groups["from"].Value, out var from)
+                || !int.TryParse(match.Groups["to"].Value, out var to))
+            {
+                continue;
+            }
+
+            var low = Math.Min(from, to);
+            var high = Math.Max(from, to);
+            if (low < 0 || high > 99 || high - low > 30)
+            {
+                continue;
+            }
+
+            for (var season = low; season <= high; season++)
+            {
+                seasons.Add(season);
+            }
+        }
+
+        return seasons.ToList();
+    }
+
+    private static bool CanReuseTorrentIdentity(ImportStateEntry? identity, ParsedMedia parsed)
+    {
+        if (identity?.TmdbId is not > 0 || !string.Equals(identity.Status, "IdentityMatched", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (parsed.Kind == MediaKind.Movie)
+        {
+            return identity.Kind == MediaKind.Movie;
+        }
+
+        return parsed.Kind == MediaKind.Episode
+            && identity.Kind == MediaKind.Episode
+            && parsed.Season.HasValue
+            && parsed.Episode.HasValue;
     }
 
     private async Task<bool> CreateInitialBaselineIfNeededAsync(IReadOnlyList<QbTorrent> torrents, CancellationToken cancellationToken)

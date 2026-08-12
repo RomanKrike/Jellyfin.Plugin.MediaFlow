@@ -128,6 +128,9 @@ public sealed class MediaFlowMediaSummary
 
     [JsonPropertyName("season")]
     public int? Season { get; init; }
+
+    [JsonPropertyName("seasons")]
+    public IReadOnlyList<int> Seasons { get; init; } = [];
 }
 
 public sealed class MediaFlowLogEntry

@@ -140,6 +140,12 @@ public sealed class ImportStateEntry
 
     public int? Episode { get; set; }
 
+    /// <summary>
+    /// Torrent-level season identity. Usually one season, but multi-season packs can contain several.
+    /// File-level entries may leave this empty.
+    /// </summary>
+    public List<int> Seasons { get; set; } = [];
+
     public string? MediaTitle { get; set; }
 
     public int? MediaYear { get; set; }

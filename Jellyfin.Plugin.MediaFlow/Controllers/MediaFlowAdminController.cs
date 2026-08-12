@@ -18,6 +18,7 @@ public sealed class MediaFlowAdminController : ControllerBase
 {
     private const string BaselineMarkerKey = "__mediaflow_baseline_v1";
     private const string BaselineTorrentPrefix = "__mediaflow_torrent_baseline:";
+    private const string TorrentIdentityPrefix = "__mediaflow_torrent_identity:";
     private readonly QbittorrentClient _qbittorrent;
     private readonly TmdbClient _tmdb;
     private readonly HardLinkService _hardLinks;
@@ -138,13 +139,14 @@ public sealed class MediaFlowAdminController : ControllerBase
 
         var qbFiles = await _qbittorrent.GetFilesAsync(hash, cancellationToken).ConfigureAwait(false);
         var allState = await _state.GetAllAsync(cancellationToken).ConfigureAwait(false);
+        allState.TryGetValue(TorrentIdentityPrefix + hash, out var torrentIdentity);
         var prefix = hash + ":";
         var state = allState
             .Where(x => x.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase);
         var categoryKind = GetCategoryKind(torrent.Category, config);
         var rows = new List<MediaFlowTorrentFileRow>();
-        ImportStateEntry? identityEntry = null;
+        ImportStateEntry? identityEntry = torrentIdentity?.TmdbId is > 0 ? torrentIdentity : null;
         ParsedMedia? identityParsed = null;
 
         foreach (var file in qbFiles.Where(x => IsEligibleVideoFile(x, config)).OrderBy(x => x.Index))
@@ -220,6 +222,9 @@ public sealed class MediaFlowAdminController : ControllerBase
                 try
                 {
                     var tmdb = await _tmdb.GetMediaSummaryByIdAsync(kind, identityEntry.TmdbId.Value, cancellationToken).ConfigureAwait(false);
+                    var seasons = identityEntry.Seasons.Count > 0
+                        ? identityEntry.Seasons.Distinct().OrderBy(x => x).ToList()
+                        : rows.Where(x => x.Season.HasValue).Select(x => x.Season!.Value).Distinct().OrderBy(x => x).ToList();
                     media = new MediaFlowMediaSummary
                     {
                         TmdbId = tmdb.Id,
@@ -227,11 +232,15 @@ public sealed class MediaFlowAdminController : ControllerBase
                         Title = string.IsNullOrWhiteSpace(identityEntry.MediaTitle) ? tmdb.Title : identityEntry.MediaTitle!,
                         Year = identityEntry.MediaYear ?? tmdb.Year,
                         PosterPath = identityEntry.PosterPath ?? tmdb.PosterPath,
-                        Season = identityEntry.Season ?? identityParsed?.Season
+                        Season = seasons.Count == 1 ? seasons[0] : identityEntry.Season ?? identityParsed?.Season,
+                        Seasons = seasons
                     };
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
+                    var seasons = identityEntry.Seasons.Count > 0
+                        ? identityEntry.Seasons.Distinct().OrderBy(x => x).ToList()
+                        : rows.Where(x => x.Season.HasValue).Select(x => x.Season!.Value).Distinct().OrderBy(x => x).ToList();
                     media = new MediaFlowMediaSummary
                     {
                         TmdbId = identityEntry.TmdbId.Value,
@@ -239,7 +248,8 @@ public sealed class MediaFlowAdminController : ControllerBase
                         Title = identityEntry.MediaTitle ?? torrent.Name,
                         Year = identityEntry.MediaYear,
                         PosterPath = identityEntry.PosterPath,
-                        Season = identityEntry.Season ?? identityParsed?.Season
+                        Season = seasons.Count == 1 ? seasons[0] : identityEntry.Season ?? identityParsed?.Season,
+                        Seasons = seasons
                     };
                 }
             }
@@ -255,6 +265,8 @@ public sealed class MediaFlowAdminController : ControllerBase
             size = torrent.Size,
             downloaded = torrent.Downloaded,
             media,
+            identityStatus = torrentIdentity?.Status,
+            identityMessage = torrentIdentity?.Message,
             eligibleFiles = rows.Count,
             completedFiles = rows.Count(x => x.Progress >= 0.999999),
             importedFiles = rows.Count(x => string.Equals(x.StateStatus, "Imported", StringComparison.OrdinalIgnoreCase)),

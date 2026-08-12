@@ -575,14 +575,38 @@
         + '</div>';
     }
 
+    function normalizedSeasons(media) {
+        if (!media) return [];
+        const values = Array.isArray(media.seasons) ? media.seasons.slice() : [];
+        if (!values.length && media.season != null) values.push(media.season);
+        return Array.from(new Set(values.map(function(x) { return Number(x); }).filter(function(x) { return Number.isFinite(x); }))).sort(function(a, b) { return a - b; });
+    }
+
+    function seasonLabel(media) {
+        const seasons = normalizedSeasons(media);
+        if (!seasons.length) return '';
+        if (seasons.length === 1) return 'Сезон ' + seasons[0];
+        return 'Сезоны ' + seasons.join('–');
+    }
+
+    function mediaDisplayTitle(media, fallback) {
+        if (!media) return fallback || 'Media';
+        let value = (media.title || fallback || 'Media') + (media.year ? ' (' + media.year + ')' : '');
+        if (String(media.kind || '').toLowerCase() === 'episode') {
+            const season = seasonLabel(media);
+            if (season) value += ' — ' + season;
+        }
+        return value;
+    }
+
     function renderTorrentDetails(details) {
         const files = Array.isArray(details.files) ? details.files : [];
         const media = details.media || null;
         const mediaLine = media
             ? '<span class="mf-badge info">TMDb #' + esc(media.tmdbId) + '</span>'
                 + '<span class="mf-badge">' + esc(media.kind || 'Media') + '</span>'
-                + (media.season != null ? '<span class="mf-badge">Season ' + esc(media.season) + '</span>' : '')
-            : '<span class="mf-secondary">TMDb identity ещё не сохранена для этого торрента.</span>';
+                + (seasonLabel(media) ? '<span class="mf-badge">' + esc(seasonLabel(media)) + '</span>' : '')
+            : '<span class="mf-secondary">' + esc(details.identityStatus === 'IdentityNeedsReview' ? 'TMDb identity требует проверки.' : (details.identityStatus === 'IdentityFailed' ? 'TMDb identity: ' + (details.identityMessage || 'ошибка определения') : 'TMDb identity ещё не сохранена для этого торрента.')) + '</span>';
         return '<div class="mf-detail-head"><div><div class="mf-detail-title">Файлы и эпизоды</div><div class="mf-rich-summary">' + mediaLine + '</div></div>'
             + '<div class="mf-secondary">' + esc(details.importedFiles || 0) + ' imported / ' + esc(details.completedFiles || 0) + ' downloaded / ' + esc(details.eligibleFiles || 0) + ' eligible</div></div>'
             + '<div class="mf-file-list">' + (files.length ? files.map(renderTorrentFileRow).join('') : '<div class="mf-empty">Подходящих видеофайлов нет.</div>') + '</div>';
@@ -594,7 +618,7 @@
         if (media) {
             const titleEl = card.querySelector('[data-mf-title]');
             const releaseEl = card.querySelector('[data-mf-release]');
-            if (titleEl) titleEl.textContent = (media.title || details.name || 'Media') + (media.year ? ' (' + media.year + ')' : '');
+            if (titleEl) titleEl.textContent = mediaDisplayTitle(media, details.name || 'Media');
             if (releaseEl) releaseEl.textContent = details.name || '';
             const slot = card.querySelector('.mf-cover-slot');
             if (slot && media.posterPath) {
@@ -1097,7 +1121,7 @@
 
     page.addEventListener('pageshow', initializePage);
     page.addEventListener('viewshow', initializePage);
-    console.info('MediaFlow UI v0.1.13 script loaded');
+    console.info('MediaFlow UI v0.1.16 script loaded');
     queueMicrotask(initializePage);
 })();
 </script>
