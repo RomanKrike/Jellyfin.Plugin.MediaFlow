@@ -376,7 +376,7 @@
     let strings = Object.create(null);
     let uiCulture = 'en-US';
 
-    function t(key, vars) {
+    function tr(key, vars) {
         let value = Object.prototype.hasOwnProperty.call(strings, key) ? strings[key] : key;
         if (vars) {
             Object.keys(vars).forEach(function(name) {
@@ -387,8 +387,8 @@
     }
 
     function applyLocalization() {
-        page.querySelectorAll('[data-i18n]').forEach(function(el) { el.textContent = t(el.dataset.i18n); });
-        page.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) { el.setAttribute('placeholder', t(el.dataset.i18nPlaceholder)); });
+        page.querySelectorAll('[data-i18n]').forEach(function(el) { el.textContent = tr(el.dataset.i18n); });
+        page.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) { el.setAttribute('placeholder', tr(el.dataset.i18nPlaceholder)); });
         document.documentElement.setAttribute('lang', uiCulture);
     }
 
@@ -458,7 +458,7 @@
             Imported:'status.imported',
             Ignored:'status.ignored'
         };
-        return keyMap[status] ? t(keyMap[status]) : (status || '—');
+        return keyMap[status] ? tr(keyMap[status]) : (status || '—');
     }
 
     function statusClass(status) {
@@ -482,8 +482,8 @@
     function mediaMark(category) {
         const cfg = window.__mfConfigCache || {};
         if (String(category || '').toLowerCase() === String(cfg.QbittorrentTvCategory || 'tv').toLowerCase()) return 'TV';
-        if (String(category || '').toLowerCase() === String(cfg.QbittorrentMovieCategory || 'movie').toLowerCase()) return t('media.movie');
-        return category ? String(category).toUpperCase().slice(0, 6) : t('media.media');
+        if (String(category || '').toLowerCase() === String(cfg.QbittorrentMovieCategory || 'movie').toLowerCase()) return tr('media.movie');
+        return category ? String(category).toUpperCase().slice(0, 6) : tr('media.media');
     }
 
     function setHealth(id, connected, value, title, warning) {
@@ -492,7 +492,7 @@
         el.classList.remove('ok','warn','err');
         el.classList.add(connected ? (warning ? 'warn' : 'ok') : 'err');
         const valueEl = el.querySelector('.mf-health-value');
-        if (valueEl) valueEl.textContent = value || (connected ? t('common.connected') : t('common.disconnected'));
+        if (valueEl) valueEl.textContent = value || (connected ? tr('common.connected') : tr('common.disconnected'));
         el.title = title || '';
     }
 
@@ -515,10 +515,10 @@
 
     function torrentFileStats(t) {
         const parts = [];
-        if (t.importedFiles) parts.push('<span class="good">' + esc(t('torrent.stats.imported', {count:t.importedFiles})) + '</span>');
-        if (t.reviewFiles) parts.push('<span class="warn">' + esc(t('torrent.stats.review', {count:t.reviewFiles})) + '</span>');
-        if (t.failedFiles) parts.push('<span class="bad">' + esc(t('torrent.stats.failed', {count:t.failedFiles})) + '</span>');
-        if (!parts.length) parts.push('<span>' + esc(t('torrent.stats.tracked', {count:t.trackedFiles || 0})) + '</span>');
+        if (t.importedFiles) parts.push('<span class="good">' + esc(tr('torrent.stats.imported', {count:t.importedFiles})) + '</span>');
+        if (t.reviewFiles) parts.push('<span class="warn">' + esc(tr('torrent.stats.review', {count:t.reviewFiles})) + '</span>');
+        if (t.failedFiles) parts.push('<span class="bad">' + esc(tr('torrent.stats.failed', {count:t.failedFiles})) + '</span>');
+        if (!parts.length) parts.push('<span>' + esc(tr('torrent.stats.tracked', {count:t.trackedFiles || 0})) + '</span>');
         return parts.join('');
     }
 
@@ -527,18 +527,18 @@
         const sizeText = fmtBytes(t.downloaded) + ' / ' + fmtBytes(t.size);
         const displayStatus = effectiveTorrentStatus(t);
         const actions = '<div class="mf-rich-actions">'
-            + (!compact ? '<button type="button" class="mf-mini-btn" data-action="toggle-details" data-hash="' + esc(t.hash) + '">' + esc(t('common.files')) + '</button>' : '')
-            + '<button type="button" class="mf-mini-btn" data-action="reconcile" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">' + esc(t('common.reconcile')) + '</button>'
-            + '<button type="button" class="mf-mini-btn primary" data-action="reprocess" data-hash="' + esc(t.hash) + '">' + esc(t('common.reprocess')) + '</button>'
+            + (!compact ? '<button type="button" class="mf-mini-btn" data-action="toggle-details" data-hash="' + esc(t.hash) + '">' + esc(tr('common.files')) + '</button>' : '')
+            + '<button type="button" class="mf-mini-btn" data-action="reconcile" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">' + esc(tr('common.reconcile')) + '</button>'
+            + '<button type="button" class="mf-mini-btn primary" data-action="reprocess" data-hash="' + esc(t.hash) + '">' + esc(tr('common.reprocess')) + '</button>'
             + '<details class="mf-action-menu">'
-                + '<summary class="mf-mini-btn">' + esc(t('common.more')) + '</summary>'
+                + '<summary class="mf-mini-btn">' + esc(tr('common.more')) + '</summary>'
                 + '<div class="mf-action-menu-pop">'
-                    + '<div class="mf-action-menu-note">' + esc(t('torrent.actionsIndependent')) + '</div>'
-                    + '<button type="button" class="mf-mini-btn danger" data-action="delete-jellyfin" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">' + esc(t('torrent.deleteJellyfin')) + '</button>'
-                    + '<button type="button" class="mf-mini-btn danger" data-action="delete-qb" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">' + esc(t('torrent.deleteQb')) + '</button>'
-                    + '<button type="button" class="mf-mini-btn danger" data-action="delete-qb-files" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">' + esc(t('torrent.deleteQbFiles')) + '</button>'
+                    + '<div class="mf-action-menu-note">' + esc(tr('torrent.actionsIndependent')) + '</div>'
+                    + '<button type="button" class="mf-mini-btn danger" data-action="delete-jellyfin" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">' + esc(tr('torrent.deleteJellyfin')) + '</button>'
+                    + '<button type="button" class="mf-mini-btn danger" data-action="delete-qb" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">' + esc(tr('torrent.deleteQb')) + '</button>'
+                    + '<button type="button" class="mf-mini-btn danger" data-action="delete-qb-files" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">' + esc(tr('torrent.deleteQbFiles')) + '</button>'
                     + '<div class="mf-action-divider"></div>'
-                    + '<button type="button" class="mf-mini-btn subtle" data-action="reset" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">' + esc(t('torrent.resetState')) + '</button>'
+                    + '<button type="button" class="mf-mini-btn subtle" data-action="reset" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">' + esc(tr('torrent.resetState')) + '</button>'
                 + '</div>'
             + '</details>'
             + '</div>';
@@ -567,17 +567,17 @@
                 + '</div>'
                 + '<div class="mf-hash" title="' + esc(t.hash) + '">' + esc(String(t.hash || '').slice(0, compact ? 12 : 20)) + '</div>'
             + '</div>'
-            + (!compact ? '<div class="mf-details" data-mf-details><div class="mf-detail-loading">' + esc(t('torrent.detailsHint')) + '</div></div>' : '')
+            + (!compact ? '<div class="mf-details" data-mf-details><div class="mf-detail-loading">' + esc(tr('torrent.detailsHint')) + '</div></div>' : '')
         + '</article>';
     }
 
     function filePriorityLabel(priority) {
         const p = Number(priority);
-        if (p === 0) return t('priority.disabled');
-        if (p === 7) return t('priority.maximum');
-        if (p === 6) return t('priority.high');
-        if (p === 1) return t('priority.normal');
-        return t('priority.other', {value:String(priority == null ? '—' : priority)});
+        if (p === 0) return tr('priority.disabled');
+        if (p === 7) return tr('priority.maximum');
+        if (p === 6) return tr('priority.high');
+        if (p === 1) return tr('priority.normal');
+        return tr('priority.other', {value:String(priority == null ? '—' : priority)});
     }
 
     function fileStateBadge(f) {
@@ -593,20 +593,20 @@
         // state entry for the file. Do not call an actively downloading episode
         // "Не отслеживается".
         if (priority === 0) {
-            return '<span class="mf-badge warn">' + esc(t('file.disabled')) + '</span>';
+            return '<span class="mf-badge warn">' + esc(tr('file.disabled')) + '</span>';
         }
 
         if (pct >= 99.999) {
-            return '<span class="mf-badge info">' + esc(t('file.ready')) + '</span>';
+            return '<span class="mf-badge info">' + esc(tr('file.ready')) + '</span>';
         }
 
         if (pct > 0) {
             return '<span class="mf-badge info downloading">'
-                + esc(priority === 7 ? t('file.downloadingMaximum') : t('file.downloading'))
+                + esc(priority === 7 ? tr('file.downloadingMaximum') : tr('file.downloading'))
                 + '</span>';
         }
 
-        return '<span class="mf-badge">' + esc(t('file.waiting')) + '</span>';
+        return '<span class="mf-badge">' + esc(tr('file.waiting')) + '</span>';
     }
 
     function renderTorrentFileRow(f) {
@@ -620,13 +620,13 @@
             linkText = 'Hardlink OK';
             linkClass = 'ok';
         } else if (f.destinationExists && f.sameHardlink === false) {
-            linkText = t('file.conflict');
+            linkText = tr('file.conflict');
             linkClass = 'err';
         } else if (f.destinationExists) {
-            linkText = t('file.inJellyfin');
+            linkText = tr('file.inJellyfin');
             linkClass = 'warn';
         } else if (f.stateStatus === 'Imported') {
-            linkText = t('file.missingJellyfin');
+            linkText = tr('file.missingJellyfin');
             linkClass = 'err';
         }
         const title = f.message ? ' title="' + esc(f.message) + '"' : '';
@@ -648,12 +648,12 @@
     function seasonLabel(media) {
         const seasons = normalizedSeasons(media);
         if (!seasons.length) return '';
-        if (seasons.length === 1) return t('season.one', {season:seasons[0]});
-        return t('season.many', {seasons:seasons.join('–')});
+        if (seasons.length === 1) return tr('season.one', {season:seasons[0]});
+        return tr('season.many', {seasons:seasons.join('–')});
     }
 
     function mediaDisplayTitle(media, fallback) {
-        if (!media) return fallback || t('media.generic');
+        if (!media) return fallback || tr('media.generic');
         let value = (media.title || fallback || 'Media') + (media.year ? ' (' + media.year + ')' : '');
         if (String(media.kind || '').toLowerCase() === 'episode') {
             const season = seasonLabel(media);
@@ -669,10 +669,10 @@
             ? '<span class="mf-badge info">TMDb #' + esc(media.tmdbId) + '</span>'
                 + '<span class="mf-badge">' + esc(media.kind || 'Media') + '</span>'
                 + (seasonLabel(media) ? '<span class="mf-badge">' + esc(seasonLabel(media)) + '</span>' : '')
-            : '<span class="mf-secondary">' + esc(details.identityStatus === 'IdentityNeedsReview' ? t('identity.review') : (details.identityStatus === 'IdentityFailed' ? t('identity.failed', {message:details.identityMessage || t('identity.error')}) : t('identity.pending'))) + '</span>';
-        return '<div class="mf-detail-head"><div><div class="mf-detail-title">' + esc(t('torrent.filesTitle')) + '</div><div class="mf-rich-summary">' + mediaLine + '</div></div>'
-            + '<div class="mf-secondary">' + esc(t('torrent.detailsSummary', {imported:details.importedFiles || 0, downloaded:details.completedFiles || 0, eligible:details.eligibleFiles || 0})) + '</div></div>'
-            + '<div class="mf-file-list">' + (files.length ? files.map(renderTorrentFileRow).join('') : '<div class="mf-empty">' + esc(t('torrent.noEligibleFiles')) + '</div>') + '</div>';
+            : '<span class="mf-secondary">' + esc(details.identityStatus === 'IdentityNeedsReview' ? tr('identity.review') : (details.identityStatus === 'IdentityFailed' ? tr('identity.failed', {message:details.identityMessage || tr('identity.error')}) : tr('identity.pending'))) + '</span>';
+        return '<div class="mf-detail-head"><div><div class="mf-detail-title">' + esc(tr('torrent.filesTitle')) + '</div><div class="mf-rich-summary">' + mediaLine + '</div></div>'
+            + '<div class="mf-secondary">' + esc(tr('torrent.detailsSummary', {imported:details.importedFiles || 0, downloaded:details.completedFiles || 0, eligible:details.eligibleFiles || 0})) + '</div></div>'
+            + '<div class="mf-file-list">' + (files.length ? files.map(renderTorrentFileRow).join('') : '<div class="mf-empty">' + esc(tr('torrent.noEligibleFiles')) + '</div>') + '</div>';
     }
 
     function applyTorrentIdentity(card, details) {
@@ -681,7 +681,7 @@
         if (media) {
             const titleEl = card.querySelector('[data-mf-title]');
             const releaseEl = card.querySelector('[data-mf-release]');
-            if (titleEl) titleEl.textContent = mediaDisplayTitle(media, details.name || t('media.generic'));
+            if (titleEl) titleEl.textContent = mediaDisplayTitle(media, details.name || tr('media.generic'));
             if (releaseEl) releaseEl.textContent = details.name || '';
             const slot = card.querySelector('.mf-cover-slot');
             if (slot && media.posterPath) {
@@ -700,14 +700,14 @@
             if (panel) panel.innerHTML = renderTorrentDetails(cached);
             return;
         }
-        if (panel) panel.innerHTML = '<div class="mf-detail-loading">' + esc(t('torrent.detailsLoading')) + '</div>';
+        if (panel) panel.innerHTML = '<div class="mf-detail-loading">' + esc(tr('torrent.detailsLoading')) + '</div>';
         try {
             const details = await api('GET', 'MediaFlow/Admin/torrents/' + encodeURIComponent(hash) + '/details?stamp=' + Date.now());
             torrentDetailsCache.set(hash, details);
             applyTorrentIdentity(card, details);
             if (panel) panel.innerHTML = renderTorrentDetails(details);
         } catch (err) {
-            if (panel) panel.innerHTML = '<div class="mf-empty">' + esc(t('torrent.detailsFailed')) + '</div>';
+            if (panel) panel.innerHTML = '<div class="mf-empty">' + esc(tr('torrent.detailsFailed')) + '</div>';
             console.error(err);
         }
     }
@@ -739,7 +739,7 @@
     function historyRow(h, compact) {
         let action = '';
         if (h.status === 'NeedsReview') {
-            action = '<button type="button" class="mf-mini-btn" data-action="open-review" data-key="' + esc(h.key) + '">' + esc(t('common.open')) + '</button>';
+            action = '<button type="button" class="mf-mini-btn" data-action="open-review" data-key="' + esc(h.key) + '">' + esc(tr('common.open')) + '</button>';
         } else if (h.status === 'Failed' || h.status === 'Ignored') {
             action = '<button type="button" class="mf-mini-btn" data-action="retry-state" data-key="' + esc(h.key) + '">Retry</button>';
         }
@@ -767,17 +767,17 @@
 
     function candidateCard(candidate, key) {
         const poster = candidate.posterPath
-            ? '<img class="mf-poster" loading="lazy" src="' + esc(posterBase + candidate.posterPath) + '" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';"><div class="mf-poster-empty" style="display:none">' + esc(t('review.noPoster')) + '</div>'
-            : '<div class="mf-poster-empty">' + esc(t('review.noPoster')) + '</div>';
+            ? '<img class="mf-poster" loading="lazy" src="' + esc(posterBase + candidate.posterPath) + '" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';"><div class="mf-poster-empty" style="display:none">' + esc(tr('review.noPoster')) + '</div>'
+            : '<div class="mf-poster-empty">' + esc(tr('review.noPoster')) + '</div>';
         const year = candidate.year ? ' (' + esc(candidate.year) + ')' : '';
         const original = candidate.originalTitle && candidate.originalTitle !== candidate.title
             ? '<div class="mf-candidate-original">' + esc(candidate.originalTitle) + '</div>'
             : '';
         const score = Number(candidate.score || 0) > 0
-            ? '<span class="mf-badge ' + (Number(candidate.score) >= 82 ? 'ok' : 'warn') + '">' + esc(t('review.score', {score:Number(candidate.score).toFixed(1)})) + '</span>'
-            : '<span class="mf-badge info">' + esc(t('review.manualSearch')) + '</span>';
+            ? '<span class="mf-badge ' + (Number(candidate.score) >= 82 ? 'ok' : 'warn') + '">' + esc(tr('review.score', {score:Number(candidate.score).toFixed(1)})) + '</span>'
+            : '<span class="mf-badge info">' + esc(tr('review.manualSearch')) + '</span>';
         const episode = candidate.episodeTitle
-            ? '<div class="mf-secondary">' + esc(t('review.episode', {title:candidate.episodeTitle})) + (candidate.episodeAirYear ? ' · ' + esc(candidate.episodeAirYear) : '') + '</div>'
+            ? '<div class="mf-secondary">' + esc(tr('review.episode', {title:candidate.episodeTitle})) + (candidate.episodeAirYear ? ' · ' + esc(candidate.episodeAirYear) : '') + '</div>'
             : '';
         const reasons = Array.isArray(candidate.reasons) && candidate.reasons.length
             ? '<div class="mf-secondary">' + esc(candidate.reasons.join(' · ')) + '</div>'
@@ -786,11 +786,11 @@
         return '<div class="mf-candidate">'
             + '<div>' + poster + '</div>'
             + '<div class="mf-candidate-info">'
-                + '<div class="mf-candidate-title">' + esc(candidate.title || t('review.untitled')) + year + '</div>'
+                + '<div class="mf-candidate-title">' + esc(candidate.title || tr('review.untitled')) + year + '</div>'
                 + original
                 + '<div class="mf-candidate-score">' + score + '<span class="mf-badge">TMDb #' + esc(candidate.id) + '</span></div>'
                 + episode + reasons
-                + '<div class="mf-candidate-actions"><button type="button" class="mf-mini-btn primary" data-action="review-approve" data-key="' + esc(key) + '" data-tmdb-id="' + esc(candidate.id) + '">' + esc(t('common.choose')) + '</button></div>'
+                + '<div class="mf-candidate-actions"><button type="button" class="mf-mini-btn primary" data-action="review-approve" data-key="' + esc(key) + '" data-tmdb-id="' + esc(candidate.id) + '">' + esc(tr('common.choose')) + '</button></div>'
             + '</div>'
         + '</div>';
     }
@@ -803,28 +803,28 @@
             : '';
         const candidateHtml = candidates.length
             ? candidates.map(function(c) { return candidateCard(c, h.key); }).join('')
-            : '<div class="mf-empty">' + esc(t('review.noCandidates')) + '</div>';
+            : '<div class="mf-empty">' + esc(tr('review.noCandidates')) + '</div>';
         const searchDisabled = canManual ? '' : ' disabled';
-        const oldEntryNote = canManual ? '' : '<div class="mf-review-reason">' + esc(t('review.oldEntry')) + '</div>';
+        const oldEntryNote = canManual ? '' : '<div class="mf-review-reason">' + esc(tr('review.oldEntry')) + '</div>';
 
         return '<article class="mf-review-item" data-review-key="' + esc(h.key) + '">'
             + '<div class="mf-review-head">'
                 + '<div>'
                     + '<div class="mf-review-title">' + esc(fileName(h.sourcePath)) + '</div>'
-                    + '<div class="mf-torrent-meta"><span class="mf-badge warn">' + esc(t('status.needsReview')) + '</span>' + episodeText + (h.kind ? '<span class="mf-badge">' + esc(h.kind) + '</span>' : '') + '</div>'
-                    + '<div class="mf-review-reason">' + esc(h.message || t('review.defaultReason')) + '</div>'
+                    + '<div class="mf-torrent-meta"><span class="mf-badge warn">' + esc(tr('status.needsReview')) + '</span>' + episodeText + (h.kind ? '<span class="mf-badge">' + esc(h.kind) + '</span>' : '') + '</div>'
+                    + '<div class="mf-review-reason">' + esc(h.message || tr('review.defaultReason')) + '</div>'
                     + '<div class="mf-secondary">' + esc(h.sourcePath || '') + '</div>'
                     + oldEntryNote
                 + '</div>'
                 + '<div class="mf-actions">'
-                    + '<button type="button" class="mf-mini-btn" data-action="retry-state" data-key="' + esc(h.key) + '">' + esc(t('common.retryAnalysis')) + '</button>'
-                    + '<button type="button" class="mf-mini-btn danger" data-action="review-ignore" data-key="' + esc(h.key) + '">' + esc(t('common.ignore')) + '</button>'
+                    + '<button type="button" class="mf-mini-btn" data-action="retry-state" data-key="' + esc(h.key) + '">' + esc(tr('common.retryAnalysis')) + '</button>'
+                    + '<button type="button" class="mf-mini-btn danger" data-action="review-ignore" data-key="' + esc(h.key) + '">' + esc(tr('common.ignore')) + '</button>'
                 + '</div>'
             + '</div>'
             + '<div class="mf-review-body">'
                 + '<div class="mf-review-searchbar">'
                     + '<input class="mf-review-search" type="text" is="emby-input" placeholder="" data-i18n-placeholder="search.review"' + searchDisabled + ' />'
-                    + '<button type="button" class="mf-mini-btn" data-action="review-search" data-key="' + esc(h.key) + '"' + searchDisabled + '>' + esc(t('common.searchTmdb')) + '</button>'
+                    + '<button type="button" class="mf-mini-btn" data-action="review-search" data-key="' + esc(h.key) + '"' + searchDisabled + '>' + esc(tr('common.searchTmdb')) + '</button>'
                 + '</div>'
                 + '<div class="mf-candidates">' + candidateHtml + '</div>'
             + '</div>'
@@ -842,11 +842,11 @@
         workerBadge.textContent = workerValue;
         workerBadge.className = 'mf-badge ' + (overview.workerEnabled ? (overview.dryRunMode ? 'warn' : 'ok') : 'err');
         const qbBadge = page.querySelector('#mfSettingsQbBadge');
-        qbBadge.textContent = overview.qbittorrentConnected ? t('common.connected') : t('common.error');
+        qbBadge.textContent = overview.qbittorrentConnected ? tr('common.connected') : tr('common.error');
         qbBadge.className = 'mf-badge ' + (overview.qbittorrentConnected ? 'ok' : 'err');
         qbBadge.title = overview.qbittorrentMessage || '';
         const tmdbBadge = page.querySelector('#mfSettingsTmdbBadge');
-        tmdbBadge.textContent = overview.tmdbConnected ? t('common.connected') : t('common.error');
+        tmdbBadge.textContent = overview.tmdbConnected ? tr('common.connected') : tr('common.error');
         tmdbBadge.className = 'mf-badge ' + (overview.tmdbConnected ? 'ok' : 'err');
         tmdbBadge.title = overview.tmdbMessage || '';
     }
@@ -866,12 +866,12 @@
         const torrents = (overview.torrents || []).slice(0, 5);
         page.querySelector('#mfOverviewTorrents').innerHTML = torrents.length
             ? torrents.map(function(x) { return torrentCard(x, true); }).join('')
-            : '<div class="mf-empty">' + esc(t('torrent.none')) + '</div>';
+            : '<div class="mf-empty">' + esc(tr('torrent.none')) + '</div>';
 
         const history = (overview.history || []).slice(0, 8);
         page.querySelector('#mfOverviewHistory').innerHTML = history.length
             ? history.map(function(x) { return historyRow(x, true); }).join('')
-            : '<tr><td colspan="5" class="mf-secondary">' + esc(t('empty.history')) + '</td></tr>';
+            : '<tr><td colspan="5" class="mf-secondary">' + esc(tr('empty.history')) + '</td></tr>';
 
         renderQueue();
         renderHistory();
@@ -890,7 +890,7 @@
         });
         page.querySelector('#mfTorrentCards').innerHTML = rows.length
             ? rows.map(function(x) { return torrentCard(x, false); }).join('')
-            : '<div class="mf-empty">' + esc(t('empty.search')) + '</div>';
+            : '<div class="mf-empty">' + esc(tr('empty.search')) + '</div>';
         if (rows.length) setTimeout(hydrateRecentCards, 0);
     }
 
@@ -902,7 +902,7 @@
         });
         page.querySelector('#mfHistoryTable').innerHTML = rows.length
             ? rows.map(function(x) { return historyRow(x, false); }).join('')
-            : '<tr><td colspan="7" class="mf-secondary">' + esc(t('empty.history')) + '</td></tr>';
+            : '<tr><td colspan="7" class="mf-secondary">' + esc(tr('empty.history')) + '</td></tr>';
     }
 
     function renderReview() {
@@ -910,7 +910,7 @@
         const rows = (overview.history || []).filter(function(h) { return h.status === 'NeedsReview'; });
         page.querySelector('#mfReviewCards').innerHTML = rows.length
             ? rows.map(reviewItem).join('')
-            : '<div class="mf-empty">' + esc(t('review.none')) + '</div>';
+            : '<div class="mf-empty">' + esc(tr('review.none')) + '</div>';
     }
 
     function logLevelBadge(level) {
@@ -937,7 +937,7 @@
                 + '<div class="mf-log-source">' + esc(x.source || 'MediaFlow') + '</div>'
                 + '<div class="mf-log-message">' + esc(x.message || '') + (context ? '<div class="mf-log-context">' + esc(context) + '</div>' : '') + '</div>'
             + '</div>';
-        }).join('') : '<div class="mf-empty">' + esc(t('empty.logs')) + '</div>';
+        }).join('') : '<div class="mf-empty">' + esc(tr('empty.logs')) + '</div>';
     }
 
     async function loadLogs(showLoading) {
@@ -949,7 +949,7 @@
         } catch (err) {
             console.error(err);
             const list = page.querySelector('#mfLogList');
-            if (list) list.innerHTML = '<div class="mf-empty">' + esc(t('error.logsLoad')) + '</div>';
+            if (list) list.innerHTML = '<div class="mf-empty">' + esc(tr('error.logsLoad')) + '</div>';
         } finally {
             if (showLoading) Dashboard.hideLoadingMsg();
         }
@@ -963,7 +963,7 @@
             renderOverview();
         } catch (e) {
             console.error(e);
-            toast(t('error.mediaflowLoad', {message:(e.statusText || e.message || e)}));
+            toast(tr('error.mediaflowLoad', {message:(e.statusText || e.message || e)}));
         } finally {
             if (showLoading) Dashboard.hideLoadingMsg();
         }
@@ -1024,54 +1024,54 @@
                 if (!card) return;
                 const willOpen = !card.classList.contains('expanded');
                 card.classList.toggle('expanded', willOpen);
-                action.textContent = willOpen ? t('common.hideFiles') : t('common.files');
+                action.textContent = willOpen ? tr('common.hideFiles') : tr('common.files');
                 if (willOpen) await loadTorrentDetails(action.dataset.hash, card, true);
             } else if (action.dataset.action === 'reconcile') {
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/reconcile');
                 torrentDetailsCache.delete(action.dataset.hash);
-                toast(t('toast.reconcile', {completed:r.completedFiles,total:r.qBittorrentFiles,healthy:r.healthyImported,missing:r.missingInJellyfin,conflicts:r.differentDestination,untracked:r.untrackedCompleted}));
+                toast(tr('toast.reconcile', {completed:r.completedFiles,total:r.qBittorrentFiles,healthy:r.healthyImported,missing:r.missingInJellyfin,conflicts:r.differentDestination,untracked:r.untrackedCompleted}));
                 await refreshOverview(false);
             } else if (action.dataset.action === 'reprocess') {
-                if (!confirm(t('confirm.reprocess'))) return;
+                if (!confirm(tr('confirm.reprocess'))) return;
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/reprocess');
                 torrentDetailsCache.delete(action.dataset.hash);
-                toast(t('toast.reprocess', {removed:r.removed, stale:r.staleImported || 0}));
+                toast(tr('toast.reprocess', {removed:r.removed, stale:r.staleImported || 0}));
                 await refreshOverview(false);
             } else if (action.dataset.action === 'delete-jellyfin') {
-                if (!confirm(t('confirm.deleteJellyfin', {name:action.dataset.name || 'torrent'}))) return;
+                if (!confirm(tr('confirm.deleteJellyfin', {name:action.dataset.name || 'torrent'}))) return;
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/delete-jellyfin');
                 torrentDetailsCache.delete(action.dataset.hash);
-                toast(t('toast.jellyfinDelete', {deleted:r.deletedFiles, missing:r.missingFiles, conflicts:r.conflicts}));
+                toast(tr('toast.jellyfinDelete', {deleted:r.deletedFiles, missing:r.missingFiles, conflicts:r.conflicts}));
                 await refreshOverview(false);
             } else if (action.dataset.action === 'delete-qb') {
-                if (!confirm(t('confirm.deleteQb', {name:action.dataset.name || 'torrent'}))) return;
+                if (!confirm(tr('confirm.deleteQb', {name:action.dataset.name || 'torrent'}))) return;
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/delete-qbittorrent?deleteFiles=false');
                 torrentDetailsCache.delete(action.dataset.hash);
-                toast(t('toast.qbDeleted'));
+                toast(tr('toast.qbDeleted'));
                 await refreshOverview(false);
             } else if (action.dataset.action === 'delete-qb-files') {
-                if (!confirm(t('confirm.deleteQbFiles', {name:action.dataset.name || 'torrent'}))) return;
+                if (!confirm(tr('confirm.deleteQbFiles', {name:action.dataset.name || 'torrent'}))) return;
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/delete-qbittorrent?deleteFiles=true');
                 torrentDetailsCache.delete(action.dataset.hash);
-                toast(t('toast.qbFilesDeleted'));
+                toast(tr('toast.qbFilesDeleted'));
                 await refreshOverview(false);
             } else if (action.dataset.action === 'reset') {
-                if (!confirm(t('confirm.reset', {name:action.dataset.name || 'torrent'}))) return;
+                if (!confirm(tr('confirm.reset', {name:action.dataset.name || 'torrent'}))) return;
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(action.dataset.hash) + '/reset');
                 torrentDetailsCache.delete(action.dataset.hash);
-                toast(t('toast.stateReset', {count:r.removed}));
+                toast(tr('toast.stateReset', {count:r.removed}));
                 await refreshOverview(false);
             } else if (action.dataset.action === 'retry-state') {
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/state/retry?key=' + encodeURIComponent(action.dataset.key));
                 reviewSearchResults.delete(action.dataset.key);
-                toast(t('toast.stateRetry'));
+                toast(tr('toast.stateRetry'));
                 await refreshOverview(false);
             } else if (action.dataset.action === 'open-review') {
                 setTab('review');
@@ -1084,29 +1084,29 @@
                 const input = item ? item.querySelector('.mf-review-search') : null;
                 const query = input ? String(input.value || '').trim() : '';
                 if (!query) {
-                    toast(t('toast.enterTmdb'));
+                    toast(tr('toast.enterTmdb'));
                     return;
                 }
                 Dashboard.showLoadingMsg();
                 const r = await api('GET', 'MediaFlow/Admin/review/search?key=' + encodeURIComponent(action.dataset.key) + '&query=' + encodeURIComponent(query));
                 reviewSearchResults.set(action.dataset.key, Array.isArray(r.candidates) ? r.candidates : []);
                 renderReview();
-                toast(t('toast.tmdbFound', {count:r.candidates ? r.candidates.length : 0}));
+                toast(tr('toast.tmdbFound', {count:r.candidates ? r.candidates.length : 0}));
             } else if (action.dataset.action === 'review-approve') {
                 const tmdbId = Number(action.dataset.tmdbId || 0);
                 if (!tmdbId) return;
-                if (!confirm(t('confirm.approve', {id:tmdbId}))) return;
+                if (!confirm(tr('confirm.approve', {id:tmdbId}))) return;
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/review/approve', { key: action.dataset.key, tmdbId: tmdbId });
                 reviewSearchResults.delete(action.dataset.key);
-                toast(t('toast.imported', {title:r.title || 'TMDb #' + tmdbId}));
+                toast(tr('toast.imported', {title:r.title || 'TMDb #' + tmdbId}));
                 await refreshOverview(false);
             } else if (action.dataset.action === 'review-ignore') {
-                if (!confirm(t('confirm.ignore'))) return;
+                if (!confirm(tr('confirm.ignore'))) return;
                 Dashboard.showLoadingMsg();
                 const r = await api('POST', 'MediaFlow/Admin/review/ignore?key=' + encodeURIComponent(action.dataset.key));
                 reviewSearchResults.delete(action.dataset.key);
-                toast(t('toast.reviewIgnored'));
+                toast(tr('toast.reviewIgnored'));
                 await refreshOverview(false);
             }
         } catch (err) {
@@ -1118,7 +1118,7 @@
                     if (parsed.message) message = parsed.message;
                 } catch (_) { }
             }
-            toast(t('error.operation', {message:message}));
+            toast(tr('error.operation', {message:message}));
         } finally {
             Dashboard.hideLoadingMsg();
         }
@@ -1132,16 +1132,16 @@
     page.querySelector('#mfLogLevel').addEventListener('change', renderLogs);
     page.querySelector('#mfLogRefresh').addEventListener('click', function() { loadLogs(true); });
     page.querySelector('#mfLogClear').addEventListener('click', async function() {
-        if (!confirm(t('confirm.clearLogs'))) return;
+        if (!confirm(tr('confirm.clearLogs'))) return;
         Dashboard.showLoadingMsg();
         try {
             await api('POST', 'MediaFlow/Admin/logs/clear');
             logEntries = [];
             renderLogs();
-            toast(t('toast.logsCleared'));
+            toast(tr('toast.logsCleared'));
         } catch (err) {
             console.error(err);
-            toast(t('toast.logsClearFailed'));
+            toast(tr('toast.logsClearFailed'));
         } finally {
             Dashboard.hideLoadingMsg();
         }
@@ -1151,10 +1151,10 @@
         Dashboard.showLoadingMsg();
         try {
             await saveSettings();
-            toast(t('toast.settingsSaved'));
+            toast(tr('toast.settingsSaved'));
         } catch (err) {
             console.error(err);
-            toast(t('toast.settingsSaveFailed'));
+            toast(tr('toast.settingsSaveFailed'));
         } finally {
             Dashboard.hideLoadingMsg();
         }
@@ -1172,7 +1172,7 @@
             await refreshOverview(false);
         } catch (err) {
             console.error('MediaFlow UI initialization failed', err);
-            toast(t('error.init'));
+            toast(tr('error.init'));
         } finally {
             Dashboard.hideLoadingMsg();
             mfInitRunning = false;
