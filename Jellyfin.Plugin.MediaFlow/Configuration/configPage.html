@@ -541,9 +541,42 @@
         + '</article>';
     }
 
-    function fileStateBadge(status) {
-        if (!status) return '<span class="mf-badge">Не отслеживается</span>';
-        return '<span class="mf-badge ' + statusClass(status) + '">' + esc(statusLabel(status)) + '</span>';
+    function filePriorityLabel(priority) {
+        const p = Number(priority);
+        if (p === 0) return 'Отключён';
+        if (p === 7) return 'Максимальный';
+        if (p === 6) return 'Высокий';
+        if (p === 1) return 'Обычный';
+        return 'Приоритет ' + String(priority == null ? '—' : priority);
+    }
+
+    function fileStateBadge(f) {
+        const status = f && f.stateStatus ? String(f.stateStatus) : '';
+        if (status) {
+            return '<span class="mf-badge ' + statusClass(status) + '">' + esc(statusLabel(status)) + '</span>';
+        }
+
+        const pct = Math.max(0, Math.min(100, Number((f && f.progress) || 0) * 100));
+        const priority = Number((f && f.priority) == null ? 1 : f.priority);
+
+        // qBittorrent state is meaningful even before MediaFlow creates a persistent
+        // state entry for the file. Do not call an actively downloading episode
+        // "Не отслеживается".
+        if (priority === 0) {
+            return '<span class="mf-badge warn">Отключён</span>';
+        }
+
+        if (pct >= 99.999) {
+            return '<span class="mf-badge info">Готов к обработке</span>';
+        }
+
+        if (pct > 0) {
+            return '<span class="mf-badge info downloading">'
+                + (priority === 7 ? 'Скачивается · максимум' : 'Скачивается')
+                + '</span>';
+        }
+
+        return '<span class="mf-badge">Ожидает загрузки</span>';
     }
 
     function renderTorrentFileRow(f) {
@@ -570,7 +603,7 @@
         return '<div class="mf-file-row"' + title + '>'
             + '<div class="mf-file-episode">' + esc(episode) + '</div>'
             + '<div class="mf-file-name" title="' + esc(f.name) + '">' + esc(f.name) + '<div class="mf-secondary">' + fmtBytes(f.size) + '</div></div>'
-            + '<div class="mf-file-progress">' + pct.toFixed(1) + '% · prio ' + esc(f.priority) + '<div style="margin-top:.25rem">' + fileStateBadge(f.stateStatus) + '</div></div>'
+            + '<div class="mf-file-progress">' + pct.toFixed(1) + '% · ' + esc(filePriorityLabel(f.priority)) + '<div style="margin-top:.25rem">' + fileStateBadge(f) + '</div></div>'
             + '<div class="mf-hardlink ' + linkClass + '">' + esc(linkText) + '</div>'
         + '</div>';
     }
