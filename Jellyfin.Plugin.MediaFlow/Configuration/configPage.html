@@ -123,6 +123,9 @@
 
         #MediaFlowConfigPage .mf-rich-card { position:relative; display:grid; grid-template-columns:112px minmax(0,1fr); gap:1rem; padding:1rem; background:rgba(255,255,255,.035); border:1px solid var(--mf-border); border-radius:14px; overflow:visible; }
         #MediaFlowConfigPage .mf-rich-card:hover { background:rgba(255,255,255,.048); }
+        #MediaFlowConfigPage .mf-rich-card.downloading { border-color:rgba(0,164,220,.48); box-shadow:inset 3px 0 0 var(--mf-accent); }
+        #MediaFlowConfigPage .mf-badge.downloading::before { content:''; display:inline-block; width:.42rem; height:.42rem; margin-right:.38rem; border-radius:50%; background:currentColor; vertical-align:.04rem; animation:mfDownloadPulse 1.35s ease-in-out infinite; }
+        @keyframes mfDownloadPulse { 0%,100% { opacity:.35; transform:scale(.8); } 50% { opacity:1; transform:scale(1.15); } }
         #MediaFlowConfigPage .mf-rich-cover { width:112px; height:168px; border-radius:9px; object-fit:cover; background:linear-gradient(145deg,rgba(0,164,220,.2),rgba(255,255,255,.04)); border:1px solid rgba(255,255,255,.08); }
         #MediaFlowConfigPage .mf-rich-cover-empty { width:112px; height:168px; border-radius:9px; display:flex; align-items:center; justify-content:center; text-align:center; padding:.5rem; color:#8edcf6; font-weight:700; font-size:.76rem; letter-spacing:.05em; background:linear-gradient(145deg,rgba(0,164,220,.2),rgba(255,255,255,.04)); border:1px solid rgba(0,164,220,.18); }
         #MediaFlowConfigPage .mf-rich-body { min-width:0; display:flex; flex-direction:column; gap:.75rem; }
@@ -430,9 +433,20 @@
 
     function statusClass(status) {
         if (status === 'Imported' || status === 'Ready') return 'ok';
-        if (status === 'NeedsReview' || status === 'Downloading' || status === 'Baseline' || status === 'Ignored') return 'warn';
+        if (status === 'Downloading') return 'info downloading';
+        if (status === 'NeedsReview' || status === 'Baseline' || status === 'Ignored') return 'warn';
         if (status === 'Failed') return 'err';
         return 'info';
+    }
+
+    function effectiveTorrentStatus(t) {
+        const raw = t && t.mediaFlowStatus ? String(t.mediaFlowStatus) : '';
+        // Error/review/baseline states are more important than download progress.
+        if (raw === 'NeedsReview' || raw === 'Failed' || raw === 'Baseline' || raw === 'Ignored') return raw;
+        // A season pack stays visibly active while qBittorrent still has data to download,
+        // even if every episode completed so far has already been Imported.
+        if (Number((t && t.progress) || 0) < 0.999999) return 'Downloading';
+        return raw || 'Ready';
     }
 
     function mediaMark(category) {
@@ -481,6 +495,7 @@
     function torrentCard(t, compact) {
         const pct = Math.max(0, Math.min(100, Number(t.progress || 0) * 100));
         const sizeText = fmtBytes(t.downloaded) + ' / ' + fmtBytes(t.size);
+        const displayStatus = effectiveTorrentStatus(t);
         const actions = '<div class="mf-rich-actions">'
             + (!compact ? '<button type="button" class="mf-mini-btn" data-action="toggle-details" data-hash="' + esc(t.hash) + '">Файлы</button>' : '')
             + '<button type="button" class="mf-mini-btn" data-action="reconcile" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">Сверить</button>'
@@ -498,7 +513,7 @@
             + '</details>'
             + '</div>';
 
-        return '<article class="mf-rich-card' + (compact ? ' compact' : '') + '" data-torrent-hash="' + esc(t.hash) + '">'
+        return '<article class="mf-rich-card' + (compact ? ' compact' : '') + (displayStatus === 'Downloading' ? ' downloading' : '') + '" data-torrent-hash="' + esc(t.hash) + '">'
             + '<div class="mf-cover-slot"><div class="mf-rich-cover-empty">' + esc(mediaMark(t.category)) + '</div></div>'
             + '<div class="mf-rich-body">'
                 + '<div class="mf-rich-top">'
@@ -507,7 +522,7 @@
                         + '<div class="mf-rich-release" data-mf-release>' + esc(t.name) + '</div>'
                         + '<div class="mf-torrent-meta">'
                             + '<span class="mf-badge">' + esc(t.category || '—') + '</span>'
-                            + '<span class="mf-badge ' + statusClass(t.mediaFlowStatus) + '">' + esc(statusLabel(t.mediaFlowStatus)) + '</span>'
+                            + '<span class="mf-badge ' + statusClass(displayStatus) + '">' + esc(statusLabel(displayStatus)) + '</span>'
                             + '<span class="mf-secondary">qB: ' + esc(t.qbState || '—') + '</span>'
                         + '</div>'
                     + '</div>'
@@ -781,8 +796,9 @@
         const q = String(page.querySelector('#mfTorrentSearch').value || '').toLowerCase();
         const filter = page.querySelector('#mfTorrentFilter').value || 'all';
         const rows = (overview.torrents || []).filter(function(t) {
-            const searchOk = !q || [t.name,t.hash,t.category,t.mediaFlowStatus,t.qbState].join(' ').toLowerCase().includes(q);
-            const filterOk = filter === 'all' || t.mediaFlowStatus === filter;
+            const displayStatus = effectiveTorrentStatus(t);
+            const searchOk = !q || [t.name,t.hash,t.category,displayStatus,t.mediaFlowStatus,t.qbState].join(' ').toLowerCase().includes(q);
+            const filterOk = filter === 'all' || displayStatus === filter;
             return searchOk && filterOk;
         });
         page.querySelector('#mfTorrentCards').innerHTML = rows.length

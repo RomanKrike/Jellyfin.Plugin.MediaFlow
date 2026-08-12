@@ -110,7 +110,7 @@ public sealed class MediaFlowAdminController : ControllerBase
             tmdbConnected = tmdbHealth.Connected,
             tmdbMessage = tmdbHealth.Message,
             torrentCount = rows.Count,
-            activeCount = rows.Count(x => x.MediaFlowStatus is "Downloading" or "Ready"),
+            activeCount = rows.Count(x => x.Progress < 0.999999 || x.MediaFlowStatus == "Ready"),
             baselineCount = rows.Count(x => x.MediaFlowStatus == "Baseline"),
             needsReviewCount = history.Count(x => x.status == "NeedsReview"),
             failedCount = history.Count(x => x.status == "Failed"),
@@ -859,17 +859,20 @@ public sealed class MediaFlowAdminController : ControllerBase
         {
             mediaFlowStatus = "Failed";
         }
+        // A season pack can already have one or more Imported files while qBittorrent
+        // is still downloading later episodes. Do not mark the whole torrent as
+        // Imported until the torrent itself is complete.
+        else if (torrent.Progress < 0.999999)
+        {
+            mediaFlowStatus = "Downloading";
+        }
         else if (entries.Count > 0 && imported == entries.Count)
         {
             mediaFlowStatus = "Imported";
         }
-        else if (torrent.Progress >= 0.999999)
-        {
-            mediaFlowStatus = "Ready";
-        }
         else
         {
-            mediaFlowStatus = "Downloading";
+            mediaFlowStatus = "Ready";
         }
 
         return new MediaFlowTorrentRow
