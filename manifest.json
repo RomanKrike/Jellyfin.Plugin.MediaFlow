@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.21.0",
+        "changelog": "Add localized qBittorrent status chips",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow/releases/download/v0.1.21/Jellyfin.Plugin.MediaFlow.v.0.1.21.zip",
+        "checksum": "EFAD90B0F6C0FDA01E44D707F6E3602D",
+        "timestamp": "2026-08-12T15:26:59Z"
+      },
+      {
         "version": "0.1.20.0",
         "changelog": "Move torrent seasons from title to chips",
         "targetAbi": "10.11.0.0",
