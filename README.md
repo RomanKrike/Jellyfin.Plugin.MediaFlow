@@ -1,190 +1,361 @@
-# Jellyfin MediaFlow v0.1
+# MediaFlow for Jellyfin
 
-Experimental Jellyfin server plugin that monitors qBittorrent and imports **individually completed video files** without waiting for the whole torrent.
+MediaFlow is a Jellyfin server plugin that automates the path from **qBittorrent download → TMDb identification → hardlink import → Jellyfin library scan**.
 
-Pipeline:
+It works at the **individual file level**, so completed episodes can be imported without waiting for an entire season pack to finish.
 
-`qBittorrent file progress == 1 -> context-aware parser -> TMDb candidate resolver -> hardlink -> Jellyfin library scan`
+> Current development target: **MediaFlow 0.1.12 · Jellyfin 10.11.11 · .NET 9**
 
-## What v0.1 does
-
-- polls qBittorrent Web API;
-- works per file, so episode 1 can be imported while episode 2+ are still downloading;
-- optional strict episode ordering through qBittorrent file priorities;
-- parses title/year/season/episode from filename + torrent name + parent folder;
-- deliberately does **not trust embedded MKV/MP4 title/year metadata** for identification;
-- searches TMDb with and without the parsed year;
-- uses original/translated/alternative TMDb titles;
-- validates that the requested TV episode actually exists in the TMDb candidate;
-- scores candidates and requires both a minimum score and a gap from candidate #2;
-- creates hardlinks only (no silent copy fallback and no overwrite on destination collision);
-- queues a Jellyfin library scan after imports;
-- persists imported / failed / needs-review state in the plugin data folder.
-
-## Important v0.1 limitations
-
-- `NeedsReview` is currently logged and stored in `state.json`; there is no review UI yet.
-- Multi-episode files such as `S01E01E02` are not handled specially yet.
-- Specials / absolute anime numbering need more parser rules.
-- Sidecar subtitles are not hardlinked yet.
-- Only qBittorrent monitoring is implemented; filesystem fallback scanning can be added later.
-- This source was generated without a .NET SDK in the build environment, so it has **not been compile-tested here**. Use the included GitHub Action or `build.sh`; if Jellyfin changed an interface in your exact build, adjust against that exact package version.
-
-## 1. Match the Jellyfin version
-
-Jellyfin requires plugin `Jellyfin.Controller` and `Jellyfin.Model` package versions to match the server version.
-
-Check your server version, then build with it:
-
-```bash
-./build.sh 10.11.11
-```
-
-Or edit `Directory.Build.props`.
-
-The current default in this repository is `10.11.11`.
-
-## 2. Build
-
-Requirements:
-
-- .NET SDK 9.x
-
-```bash
-dotnet restore Jellyfin.Plugin.MediaFlow/Jellyfin.Plugin.MediaFlow.csproj
-dotnet publish Jellyfin.Plugin.MediaFlow/Jellyfin.Plugin.MediaFlow.csproj -c Release -p:JellyfinVersion=10.11.11
-```
-
-Output:
+## What MediaFlow does
 
 ```text
-Jellyfin.Plugin.MediaFlow/bin/Release/net9.0/publish/Jellyfin.Plugin.MediaFlow.dll
+qBittorrent
+    ↓
+completed video file
+    ↓
+context-aware parser
+    ↓
+TMDb resolver
+    ↓
+automatic match or Needs Review
+    ↓
+hardlink into Jellyfin library
+    ↓
+Jellyfin library scan
 ```
 
-Alternatively push the repository to GitHub and run the included `build` workflow.
+### Core features
 
-## 3. Install
+- Monitors qBittorrent through its Web API.
+- Processes movies and TV torrents by configured qBittorrent categories.
+- Works per file instead of waiting for the whole torrent.
+- Parses noisy release names using the filename, torrent name and parent folders.
+- Detects title, year, season and episode signals.
+- Does not trust embedded MKV/MP4 title metadata for identification.
+- Searches TMDb using original, translated and alternative titles.
+- Searches both with and without a parsed year when useful.
+- Validates that a requested TV episode actually exists in a candidate series.
+- Uses score + score-gap rules before accepting an automatic match.
+- Creates **hardlinks only**; there is no silent copy fallback.
+- Queues a Jellyfin library scan after a successful import.
+- Persists import state so work survives Jellyfin restarts.
+- Supports dry-run testing before enabling live imports.
+- Can keep existing torrents as a baseline so only newly added torrents are automated.
+- Optional strict sequential downloading for TV episodes.
 
-Create a plugin folder, for example on a standard Linux Jellyfin install:
+## Jellyfin admin interface
 
-```bash
-mkdir -p /var/lib/jellyfin/plugins/MediaFlow
-cp Jellyfin.Plugin.MediaFlow.dll /var/lib/jellyfin/plugins/MediaFlow/
-```
+MediaFlow has its own administration page inside the Jellyfin dashboard.
 
-Then restart Jellyfin.
+The interface contains:
 
-For Docker, copy/mount the DLL into the Jellyfin config plugin directory used by your container.
+- **Overview** — worker state, counters and recent activity.
+- **Torrents** — qBittorrent progress, MediaFlow status and torrent-level actions.
+- **Needs Review** — manual TMDb candidate selection.
+- **History** — imported, failed, ignored and review state.
+- **Settings** — qBittorrent, TMDb, paths, worker and safety configuration.
 
-## 4. qBittorrent category
+Connection indicators are shown for:
 
-For safety v0.1 defaults to processing only torrents in category:
+- MediaFlow worker;
+- qBittorrent;
+- TMDb.
+
+## Torrent management
+
+MediaFlow can manage qBittorrent, its own state and the Jellyfin destination independently.
+
+### Reconcile
+
+**Reconcile** compares the selected torrent against MediaFlow state and the Jellyfin library.
+
+It reports:
+
+- eligible qBittorrent video files;
+- completed files;
+- tracked MediaFlow files;
+- healthy imported hardlinks;
+- missing Jellyfin destinations;
+- destinations that are no longer the same hardlink;
+- library-only files where the qBittorrent source no longer exists;
+- completed qBittorrent files not yet tracked by MediaFlow;
+- failed, Needs Review and ignored entries.
+
+Reconcile is non-destructive.
+
+### Reprocess
+
+**Reprocess / Repeat search** is the normal recovery action when a torrent needs to be identified and imported again.
+
+It:
+
+- removes the per-torrent baseline;
+- clears `Failed`, `NeedsReview` and `Ignored` entries;
+- keeps healthy `Imported` hardlinks;
+- releases stale imported state if the destination is missing or no longer points to the same filesystem object;
+- lets the worker perform TMDb matching and import again.
+
+This makes retry/reprocess idempotent for already-correct hardlinks.
+
+### Delete from Jellyfin
+
+**Delete from Jellyfin** removes only MediaFlow-managed destination video files for the selected torrent.
+
+It does **not** remove the qBittorrent torrent or its source data.
+
+Safety behavior:
+
+- deletion is limited to configured Movies/Shows library roots;
+- if the source still exists, MediaFlow verifies that source and destination are the same hardlink before deleting;
+- a conflicting destination is not overwritten or removed;
+- the torrent is placed into a per-torrent baseline after deletion so the worker does not immediately recreate the file;
+- use **Reprocess** when you want MediaFlow to search and import it again.
+
+### Delete from qBittorrent
+
+Two separate actions are available:
+
+- **Delete from qBittorrent** — removes the torrent job but keeps downloaded source files.
+- **Delete from qBittorrent + source files** — removes the torrent job and asks qBittorrent to delete its source data.
+
+Existing Jellyfin hardlinks are not deleted by either qBittorrent action.
+
+## Needs Review
+
+When the automatic resolver cannot choose a TMDb result confidently, the file is stored as `NeedsReview`.
+
+The admin UI can show candidate results with:
+
+- poster;
+- title;
+- year;
+- TMDb ID;
+- resolver score;
+- scoring reason.
+
+From the review page you can:
+
+- choose one of the suggested TMDb candidates;
+- search TMDb manually with a different query;
+- approve a result and import the file;
+- ignore the file;
+- retry the analysis later.
+
+## TMDb matching
+
+Release metadata is treated as evidence, not absolute truth.
+
+For example:
 
 ```text
-mediaflow
+The.Last.of.Us.2022.S01E01.2160p.WEB-DL.mkv
 ```
 
-Create this category in qBittorrent and assign media torrents to it.
+The resolver can:
 
-You can clear the category in plugin settings to process all torrents, but that is not recommended initially.
+1. extract title signals from the file and torrent names;
+2. detect `S01E01` as a strong TV signal;
+3. treat `2022` as a weighted hint rather than a hard requirement;
+4. search TMDb with and without the year;
+5. compare translated, original and alternative titles;
+6. verify that season 1 episode 1 exists;
+7. prefer the correct series even when the release year is misleading.
 
-## 5. Path mapping
+An automatic match must satisfy both the configured minimum score and the minimum gap from the second-best candidate.
 
-qBittorrent and Jellyfin may see the same physical download directory under different paths.
+## Strict sequential TV downloads
+
+When enabled for the configured TV category, MediaFlow can control qBittorrent file priorities for recognizable episode files.
+
+Conceptually:
+
+```text
+next incomplete episode   → highest priority
+later incomplete episodes → do not download
+```
+
+When the active episode finishes, MediaFlow imports it and allows the next episode on a later worker cycle.
+
+This mode is intended for season packs where you want to start watching before the entire torrent has downloaded.
+
+## Hardlink requirement
+
+MediaFlow intentionally uses hardlinks instead of copying media.
+
+The download source and Jellyfin destination must therefore be on the **same filesystem**.
 
 Example:
 
-qBittorrent reports:
-
 ```text
-/downloads/complete/Fallout/Fallout.S01E01.mkv
+/data/torrents/movie
+/data/torrents/tv
+
+/data/media/movie
+/data/media/tv
 ```
 
-Jellyfin sees the same filesystem as:
+Hardlinks provide two directory entries for the same underlying file, so the torrent can continue seeding while Jellyfin sees an independently organized library path without duplicating the media payload.
+
+If a destination already exists, MediaFlow will not blindly overwrite it.
+
+For retry/reprocess operations, an existing destination is considered healthy only when it resolves to the same filesystem object as the source.
+
+## Installation
+
+### Recommended: Jellyfin plugin repository
+
+In Jellyfin:
+
+1. Open **Dashboard → Plugins → Repositories**.
+2. Add:
 
 ```text
-/media-downloads/complete/Fallout/Fallout.S01E01.mkv
+https://raw.githubusercontent.com/RomanKrike/Jellyfin.Plugin.MediaFlow/main/manifest.json
+```
+
+3. Open the plugin catalogue.
+4. Install **MediaFlow**.
+5. Restart Jellyfin.
+
+### Manual installation
+
+Download the plugin ZIP from the GitHub Releases page, extract `Jellyfin.Plugin.MediaFlow.dll` into a MediaFlow plugin directory and restart Jellyfin.
+
+Typical Linux location:
+
+```text
+/var/lib/jellyfin/plugins/MediaFlow/
+```
+
+The exact plugin directory depends on how Jellyfin is installed.
+
+## Initial configuration
+
+A safe first setup is:
+
+1. Create qBittorrent categories for movies and TV, for example:
+   - `movie`
+   - `tv`
+2. Configure the qBittorrent URL and credentials.
+3. Configure path mapping if qBittorrent and Jellyfin see the download share under different paths.
+4. Configure the Jellyfin movie and TV library roots.
+5. Add a TMDb API v3 key.
+6. Set the TMDb language and fallback language.
+7. Enable **Dry Run**.
+8. Test one known torrent.
+9. Keep **Baseline existing torrents on first live run** enabled unless you intentionally want old torrents processed.
+10. Disable Dry Run and enable the worker.
+
+### Path mapping example
+
+qBittorrent may report:
+
+```text
+/downloads/tv/Silo/Silo.S03E01.mkv
+```
+
+while Jellyfin sees the same storage as:
+
+```text
+/mnt/media/torrents/tv/Silo/Silo.S03E01.mkv
 ```
 
 Configure:
 
 ```text
 qBittorrent path prefix: /downloads
-Local/Jellyfin path prefix: /media-downloads
+Local/Jellyfin prefix:   /mnt/media/torrents
 ```
 
-If both see `/downloads`, either leave both mapping fields empty or set both to `/downloads`.
+If both applications see exactly the same path, the prefixes can be identical or left unused according to your setup.
 
-## 6. Hardlink requirement
+## Safety model
 
-The source download and destination library **must be on the same filesystem**.
+MediaFlow is intentionally conservative around destructive or ambiguous operations.
 
-Example desired layout:
+It will not silently:
+
+- copy a file when a hardlink cannot be created;
+- overwrite an unrelated destination;
+- assume two equal-size files are the same hardlink;
+- automatically approve a low-confidence TMDb match;
+- delete a conflicting Jellyfin destination during library cleanup.
+
+Recommended workflow for an uncertain situation:
 
 ```text
-/data/downloads
-/data/media/Movies
-/data/media/Shows
+Reconcile
+    ↓
+inspect the result
+    ↓
+Reprocess / Needs Review
+    ↓
+approve only when the identity is clear
 ```
 
-where `/data` is one filesystem/dataset/volume.
+## Runtime state
 
-MediaFlow intentionally does not fall back to copying because a silent fallback can unexpectedly double disk usage.
+MediaFlow keeps persistent state in the Jellyfin plugin data area.
 
-## 7. TMDb matching behavior
-
-Example dirty release:
-
-```text
-The.Last.of.Us.2022.S01E01.2160p.WEB-DL.mkv
-```
-
-The resolver:
-
-1. extracts title signals from the filename, torrent title and parent folders;
-2. records `2022` only as a weighted hint;
-3. detects `S01E01` as a strong TV signal;
-4. searches TMDb with `2022` and without a year;
-5. compares original and alternative/translated titles;
-6. checks whether candidate season 1 episode 1 exists;
-7. can therefore prefer `The Last of Us (2023)` despite the incorrect release year.
-
-A high first score is not sufficient by itself: candidate #1 must also beat candidate #2 by `MinimumScoreGap`.
-
-## 8. Strict sequential episodes
-
-When enabled, for a multi-file torrent MediaFlow sorts recognizable episode video files by season/episode and applies:
-
-```text
-next incomplete episode -> priority 7 (maximum)
-later incomplete episodes -> priority 0 (do not download)
-```
-
-Once the next episode reaches `progress == 1`, it is imported and the following episode becomes active on the next polling cycle.
-
-Only video files are reprioritized in v0.1.
-
-## State file
-
-Runtime state is stored under the MediaFlow plugin data directory as:
-
-```text
-state.json
-```
-
-Statuses:
+Typical statuses include:
 
 - `Imported`
 - `NeedsReview`
 - `Failed`
+- `Ignored`
+- `Baseline`
 
-Failed jobs retry after the configured delay. Needs-review jobs are not automatically retried in v0.1.
+State is stored separately from qBittorrent itself, which allows MediaFlow to recover from restarts and safely distinguish already processed files from new work.
 
-## Recommended next work
+## Dry Run
 
-1. compile against the exact server version and fix any API compatibility issue;
-2. test with 20-50 real torrent naming patterns;
-3. improve parser regression tests from real bad releases;
-4. add Needs Review REST endpoint + small Jellyfin admin UI;
-5. add subtitle sidecars;
-6. add user corrections/aliases so resolver remembers manual matches.
+Dry Run is intended for parser/resolver validation before live automation.
+
+In Dry Run MediaFlow does not perform live import operations such as:
+
+- hardlink creation;
+- Jellyfin library scans caused by imports;
+- persistent live import state changes;
+- qBittorrent sequential-priority changes.
+
+Use a torrent hash or a unique torrent-name fragment to limit the test scope.
+
+## Build from source
+
+Requirements:
+
+- .NET SDK 9.x;
+- the Jellyfin package version configured by the repository.
+
+Build:
+
+```bash
+dotnet restore Jellyfin.Plugin.MediaFlow/Jellyfin.Plugin.MediaFlow.csproj
+dotnet publish Jellyfin.Plugin.MediaFlow/Jellyfin.Plugin.MediaFlow.csproj \
+  -c Release \
+  -p:JellyfinVersion=10.11.11
+```
+
+The repository also contains a GitHub Actions workflow that builds the plugin, creates versioned releases and updates `manifest.json`.
+
+## Current limitations
+
+MediaFlow is still under active development.
+
+Known areas for further work include:
+
+- sidecar subtitle import;
+- special handling for multi-episode files such as `S01E01E02`;
+- more absolute-number/anime parsing rules;
+- additional parser regression cases from real-world releases;
+- persistent user aliases/overrides for difficult titles;
+- richer torrent-level TMDb artwork and media metadata in the dashboard;
+- further UI polish and diagnostics.
+
+## Project goals
+
+MediaFlow is intentionally focused on one workflow:
+
+> **download media with qBittorrent, identify it reliably, organize it without duplicating storage, and make it appear in Jellyfin with as little manual work as possible.**
+
+It is not intended to replace qBittorrent or Jellyfin. It connects them and owns the import/reconciliation layer between them.
