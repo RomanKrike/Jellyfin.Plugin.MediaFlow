@@ -4,7 +4,7 @@ MediaFlow is a Jellyfin server plugin that automates the path from **qBittorrent
 
 It works at the **individual file level**, so completed episodes can be imported without waiting for an entire season pack to finish.
 
-> Current development target: **MediaFlow 0.1.23 · Jellyfin 10.11.11 · .NET 9**
+> Current development target: **MediaFlow 0.1.24 · Jellyfin 10.11.11 · .NET 9**
 
 ## What MediaFlow does
 
@@ -394,3 +394,16 @@ Jellyfin.Plugin.MediaFlow/Localization/
 The dashboard loads the language resource through the authenticated MediaFlow admin API and follows the Jellyfin/browser culture. Internal state identifiers such as `Imported`, `Failed`, `NeedsReview`, and `Baseline` stay language-neutral and are translated only for display.
 
 To add another language, copy `en-US.json`, rename it to the target culture (for example `de-DE.json`) and translate the values while keeping the keys unchanged.
+
+## qBittorrent compatibility
+
+MediaFlow v0.1.24 is updated and tested at the API-contract level for **qBittorrent-nox 5.1.4** (including Debian backports package `5.1.4-1~bpo13+1`).
+
+The integration uses qBittorrent WebAPI v2 with cookie authentication and automatically probes:
+
+- `/api/v2/app/version`
+- `/api/v2/app/webapiVersion`
+
+MediaFlow sends matching `Origin` and `Referer` headers required by qBittorrent WebAPI security checks, supports the qBittorrent 5.x torrent/file response fields, and uses batched `filePrio` requests for episode priorities.
+
+API-key authentication is intentionally not used for the 5.1.x target; qBittorrent introduced API-key authentication in later releases.

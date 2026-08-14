@@ -1,0 +1,31 @@
+MediaFlow v0.1.24
+
+qBittorrent 5.1.4 compatibility update.
+
+Target:
+- qbittorrent-nox 5.1.4
+- Debian backports package 5.1.4-1~bpo13+1
+- qBittorrent WebAPI v2
+
+Changes:
+- Adds qBittorrent application/WebAPI version probing.
+- Adds explicit qBittorrent 5.1.x compatibility logging.
+- Sends Origin and Referer headers matching the configured qBittorrent URL.
+  This follows qBittorrent WebAPI CSRF/Host validation requirements.
+- Keeps SID cookie authentication used by qBittorrent 5.1.x.
+- Improves authentication failure diagnostics.
+- Re-authenticates once on HTTP 401/403.
+- Replaces the stale fixed MediaFlow/0.1.2 User-Agent with the actual assembly version.
+- Expands qBittorrent torrent models for qBittorrent 5.x fields:
+  total_size, amount_left, dlspeed, eta, seq_dl, isPrivate.
+- Expands file models with is_seed, availability and piece_range.
+- Validates qBittorrent file priority values (0/1/6/7).
+- Batches multiple file indexes into one filePrio request using pipe-separated IDs.
+- Keeps sequential TV behavior:
+  current incomplete episode = Maximum (7)
+  all other recognized episodes = Normal (1)
+  no future episode is disabled with priority 0.
+- Keeps native qBittorrent sequential download enabled per managed TV torrent.
+- Existing qBittorrent 4.x cookie-auth setups remain best-effort backward compatible.
+
+No API key is added for qBittorrent 5.1.4 because qBittorrent API-key authentication is not available in that release line.

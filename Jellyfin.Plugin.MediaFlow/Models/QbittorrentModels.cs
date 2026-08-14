@@ -2,6 +2,13 @@ using System.Text.Json.Serialization;
 
 namespace Jellyfin.Plugin.MediaFlow.Models;
 
+public sealed class QbittorrentServerInfo
+{
+    public string ApplicationVersion { get; set; } = string.Empty;
+
+    public string WebApiVersion { get; set; } = string.Empty;
+}
+
 public sealed class QbTorrent
 {
     [JsonPropertyName("hash")]
@@ -28,14 +35,29 @@ public sealed class QbTorrent
     [JsonPropertyName("size")]
     public long Size { get; set; }
 
+    [JsonPropertyName("total_size")]
+    public long TotalSize { get; set; }
+
     [JsonPropertyName("downloaded")]
     public long Downloaded { get; set; }
+
+    [JsonPropertyName("amount_left")]
+    public long AmountLeft { get; set; }
+
+    [JsonPropertyName("dlspeed")]
+    public long DownloadSpeed { get; set; }
+
+    [JsonPropertyName("eta")]
+    public long Eta { get; set; }
 
     [JsonPropertyName("added_on")]
     public long AddedOn { get; set; }
 
     [JsonPropertyName("seq_dl")]
     public bool SequentialDownload { get; set; }
+
+    [JsonPropertyName("isPrivate")]
+    public bool IsPrivate { get; set; }
 }
 
 public sealed class QbTorrentFile
@@ -54,4 +76,13 @@ public sealed class QbTorrentFile
 
     [JsonPropertyName("priority")]
     public int Priority { get; set; }
+
+    [JsonPropertyName("is_seed")]
+    public bool IsSeed { get; set; }
+
+    [JsonPropertyName("availability")]
+    public double Availability { get; set; }
+
+    [JsonPropertyName("piece_range")]
+    public int[] PieceRange { get; set; } = [];
 }

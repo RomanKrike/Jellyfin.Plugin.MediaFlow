@@ -683,16 +683,40 @@ public sealed class MediaFlowWorker : BackgroundService
         }
 
         var next = incomplete[0];
+
+        var maximumPriorityIds = episodes
+            .Where(x => x.File.Index == next.File.Index && x.File.Priority != 7)
+            .Select(x => x.File.Index)
+            .ToArray();
+
+        var normalPriorityIds = episodes
+            .Where(x => x.File.Index != next.File.Index && x.File.Priority != 1)
+            .Select(x => x.File.Index)
+            .ToArray();
+
+        // qBittorrent WebAPI accepts pipe-separated file indexes in a single filePrio call.
+        // Batch the changes to reduce API traffic and avoid a burst of one request per episode.
+        if (maximumPriorityIds.Length > 0)
+        {
+            await _qbittorrent.SetFilePriorityAsync(
+                torrent.Hash,
+                maximumPriorityIds,
+                7,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        if (normalPriorityIds.Length > 0)
+        {
+            await _qbittorrent.SetFilePriorityAsync(
+                torrent.Hash,
+                normalPriorityIds,
+                1,
+                cancellationToken).ConfigureAwait(false);
+        }
+
         foreach (var episode in episodes)
         {
-            var targetPriority = episode.File.Index == next.File.Index ? 7 : 1;
-            if (episode.File.Priority == targetPriority)
-            {
-                continue;
-            }
-
-            await _qbittorrent.SetFilePriorityAsync(torrent.Hash, episode.File.Index, targetPriority, cancellationToken).ConfigureAwait(false);
-            episode.File.Priority = targetPriority;
+            episode.File.Priority = episode.File.Index == next.File.Index ? 7 : 1;
         }
 
         _logger.LogInformation("Sequential mode: prioritizing {Torrent} S{Season:00}E{Episode:00}; future episodes remain selected at normal priority", torrent.Name, next.Season, next.Episode);
