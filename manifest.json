@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.24.0",
+        "changelog": "Update qBittorrent integration for 5.1.4",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow/releases/download/v0.1.24/Jellyfin.Plugin.MediaFlow.v.0.1.24.zip",
+        "checksum": "BF756DC6094A80C7E00D465D6CEF9F48",
+        "timestamp": "2026-08-14T08:20:13Z"
+      },
+      {
         "version": "0.1.23.0",
         "changelog": "Release MediaFlow v0.1.23",
         "targetAbi": "10.11.0.0",
