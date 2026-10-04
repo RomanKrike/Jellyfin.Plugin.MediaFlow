@@ -1,0 +1,32 @@
+name: MediaFlow regression tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, 'fix/**']
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '9.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: tests/package-lock.json
+      - name: Parser regression checks
+        run: dotnet run --project tests/MediaFlow.Parser.Tests -c Release
+      - name: Install UI test dependencies
+        run: npm ci --prefix tests --no-audit --no-fund
+      - name: Admin UI regression tests
+        run: node --test tests/admin-ui.test.mjs
+      - name: Build plugin
+        run: dotnet publish Jellyfin.Plugin.MediaFlow/Jellyfin.Plugin.MediaFlow.csproj -c Release

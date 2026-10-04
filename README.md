@@ -184,6 +184,25 @@ The resolver can:
 
 An automatic match must satisfy both the configured minimum score and the minimum gap from the second-best candidate.
 
+### Anime filenames
+
+The parser supports explicit season/episode names such as `Kusuriya no Hitorigoto TV-1 05.mkv`
+and `Show Name TV 2 12.mkv`. `TV-1` specifies season 1; the following number specifies the episode.
+This same parser is used for automatic imports, sequential priorities and legacy manual-review recovery.
+
+Dashed episode names such as `[SubsPlease] Show Name - 05 [1080p].mkv` and
+`[EMBER] Show Name - 05.mkv` are supported, including `05v2` release revisions.
+Leading release groups and episode metadata are excluded from the series title sent to TMDb.
+These names use the season from the folder/torrent when present, otherwise season 1.
+Bare names such as `Show Name 05.mkv` require a season in the folder or torrent name.
+Years, resolutions and episode ranges are not interpreted as a single anime episode.
+Absolute numbering is not converted into TMDb season numbering; check manual-review candidates
+for releases whose numbering differs from TMDb.
+
+The dashboard retains the last loaded TMDb title, seasons and poster while refreshing torrent details.
+A failed refresh keeps that display until a later successful response; successful responses can
+update or clear it. HTTP failures show the backend message instead of `[object Response]`.
+
 ## Strict sequential TV downloads
 
 When enabled for the configured TV category, MediaFlow can control qBittorrent file priorities for recognizable episode files.
@@ -358,6 +377,14 @@ dotnet publish Jellyfin.Plugin.MediaFlow/Jellyfin.Plugin.MediaFlow.csproj \
 ```
 
 The repository also contains a GitHub Actions workflow that builds the plugin, creates versioned releases and updates `manifest.json`.
+
+Regression checks (no Jellyfin, qBittorrent or TMDb accounts required):
+
+```bash
+dotnet run --project tests/MediaFlow.Parser.Tests -c Release
+npm ci --prefix tests --no-audit --no-fund
+node --test tests/admin-ui.test.mjs
+```
 
 ## Current limitations
 

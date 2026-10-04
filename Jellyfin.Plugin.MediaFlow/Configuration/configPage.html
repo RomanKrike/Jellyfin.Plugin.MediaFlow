@@ -377,6 +377,10 @@
     const checkIds = ['Enabled','ManageSequentialEpisodes','BaselineExistingTorrentsOnFirstRun','DryRunMode','QbittorrentIgnoreTlsErrors'];
     const reviewSearchResults = new Map();
     const torrentDetailsCache = new Map();
+    const torrentDetailsVersions = new Map();
+    const torrentDetailsRequests = new Map();
+    let overviewVersion = 0;
+    let overviewRequest = 0;
     let logEntries = [];
     let overview = null;
     let strings = Object.create(null);
@@ -410,7 +414,7 @@
         applyLocalization();
     }
 
-    function api(method, path, body) {
+    async function api(method, path, body) {
         const options = {
             type: method,
             url: window.ApiClient.getUrl(path),
@@ -420,7 +424,37 @@
             options.contentType = 'application/json';
             options.data = JSON.stringify(body);
         }
-        return window.ApiClient.ajax(options);
+        try {
+            return await window.ApiClient.ajax(options);
+        } catch (err) {
+            const normalized = new Error(await apiErrorMessage(err));
+            normalized.status = err && err.status;
+            throw normalized;
+        }
+    }
+
+    async function apiErrorMessage(err) {
+        let body = err && err.responseText;
+        if (err && typeof err.text === 'function') {
+            try {
+                // Jellyfin's fetch-based ApiClient rejects with a Response.
+                const response = typeof err.clone === 'function' ? err.clone() : err;
+                body = await response.text();
+            } catch (_) { }
+        }
+        if (body) {
+            try {
+                const parsed = JSON.parse(body);
+                const message = parsed.message || parsed.Message || parsed.detail || parsed.title;
+                if (typeof message === 'string' && message.trim()) return message;
+            } catch (_) {
+                if (typeof body === 'string' && body.trim() && !body.includes('<')) return body.trim().slice(0, 500);
+            }
+        }
+        if (err && err.message) return err.message;
+        if (err && err.status) return 'HTTP ' + err.status + (err.statusText ? ': ' + err.statusText : '');
+        if (err && err.statusText) return err.statusText;
+        return typeof err === 'string' ? err : 'Request failed.';
     }
 
     function esc(value) {
@@ -562,6 +596,8 @@
     }
 
     function torrentCard(t, compact) {
+        const details = torrentDetailsCache.get(t.hash);
+        const media = details && details.media;
         const pct = Math.max(0, Math.min(100, Number(t.progress || 0) * 100));
         const sizeText = fmtBytes(t.downloaded) + ' / ' + fmtBytes(t.size);
         const displayStatus = effectiveTorrentStatus(t);
@@ -587,16 +623,16 @@
             + '</div>';
 
         return '<article class="mf-rich-card' + (compact ? ' compact' : '') + (displayStatus === 'Downloading' ? ' downloading' : '') + '" data-torrent-hash="' + esc(t.hash) + '">'
-            + '<div class="mf-cover-slot"><div class="mf-rich-cover-empty">' + esc(mediaMark(t.category)) + '</div></div>'
+            + '<div class="mf-cover-slot">' + torrentCoverHtml(media, t.category) + '</div>'
             + '<div class="mf-rich-body">'
                 + '<div class="mf-rich-top">'
                     + '<div style="min-width:0">'
-                        + '<div class="mf-rich-title" data-mf-title title="' + esc(t.name) + '">' + esc(t.name) + '</div>'
+                        + '<div class="mf-rich-title" data-mf-title title="' + esc(t.name) + '">' + esc(mediaDisplayTitle(media, t.name)) + '</div>'
                         + '<div class="mf-rich-release" data-mf-release>' + esc(t.name) + '</div>'
                         + '<div class="mf-torrent-meta">'
                             + '<span class="mf-badge">' + esc(t.category || '—') + '</span>'
                             + mediaStatusChip
-                            + '<span data-mf-seasons></span>'
+                            + '<span data-mf-seasons>' + seasonChipsHtml(media, compact) + '</span>'
                             + '<span class="mf-badge ' + esc(qbStatus.className) + '">' + esc(qbStatus.label) + '</span>'
                         + '</div>'
                     + '</div>'
@@ -611,8 +647,37 @@
                 + '</div>'
                 + '<div class="mf-hash" title="' + esc(t.hash) + '">' + esc(String(t.hash || '').slice(0, compact ? 12 : 20)) + '</div>'
             + '</div>'
-            + (!compact ? '<div class="mf-details" data-mf-details><div class="mf-detail-loading">' + esc(tr('torrent.detailsHint')) + '</div></div>' : '')
+            + (!compact ? '<div class="mf-details" data-mf-details>' + (details ? renderTorrentDetails(details) : '<div class="mf-detail-loading">' + esc(tr('torrent.detailsHint')) + '</div>') + '</div>' : '')
         + '</article>';
+    }
+
+    function renderTorrentCards(container, torrents, compact, emptyKey) {
+        const previous = new Map(Array.from(container.querySelectorAll('.mf-rich-card')).map(function(card) {
+            return [card.dataset.torrentHash, card];
+        }));
+        const template = document.createElement('template');
+        template.innerHTML = torrents.length
+            ? torrents.map(function(t) { return torrentCard(t, compact); }).join('')
+            : '<div class="mf-empty">' + esc(tr(emptyKey)) + '</div>';
+        template.content.querySelectorAll('.mf-rich-card').forEach(function(card) {
+            const old = previous.get(card.dataset.torrentHash);
+            if (!old) return;
+            const oldSlot = old.querySelector('.mf-cover-slot');
+            const newSlot = card.querySelector('.mf-cover-slot');
+            const oldPoster = oldSlot && oldSlot.querySelector('img');
+            const newPoster = newSlot && newSlot.querySelector('img');
+            // Reuse the loaded image rather than briefly painting a new image
+            // element on every poll, even when its URL did not change.
+            if (oldPoster && newPoster && oldPoster.getAttribute('src') === newPoster.getAttribute('src')) {
+                newSlot.replaceWith(oldSlot);
+            }
+            if (old.classList.contains('expanded')) {
+                card.classList.add('expanded');
+                const button = card.querySelector('[data-action="toggle-details"]');
+                if (button) button.textContent = tr('common.hideFiles');
+            }
+        });
+        container.replaceChildren(template.content);
     }
 
     function filePriorityLabel(priority) {
@@ -729,19 +794,28 @@
             + '<div class="mf-file-list">' + (files.length ? files.map(renderTorrentFileRow).join('') : '<div class="mf-empty">' + esc(tr('torrent.noEligibleFiles')) + '</div>') + '</div>';
     }
 
+    function torrentCoverHtml(media, category) {
+        const empty = '<div class="mf-rich-cover-empty"' + (media && media.posterPath ? ' style="display:none"' : '') + '>' + esc(mediaMark(category)) + '</div>';
+        return media && media.posterPath
+            ? '<img class="mf-rich-cover" loading="lazy" src="' + esc(posterBase + media.posterPath) + '" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';">' + empty
+            : empty;
+    }
+
     function applyTorrentIdentity(card, details) {
         if (!card || !details) return;
         const media = details.media;
-        if (media) {
-            const titleEl = card.querySelector('[data-mf-title]');
-            const releaseEl = card.querySelector('[data-mf-release]');
-            if (titleEl) titleEl.textContent = mediaDisplayTitle(media, details.name || tr('media.generic'));
-            if (releaseEl) releaseEl.textContent = details.name || '';
-            const seasonsEl = card.querySelector('[data-mf-seasons]');
-            if (seasonsEl) seasonsEl.innerHTML = seasonChipsHtml(media, card.classList.contains('compact'));
-            const slot = card.querySelector('.mf-cover-slot');
-            if (slot && media.posterPath) {
-                slot.innerHTML = '<img class="mf-rich-cover" loading="lazy" src="' + esc(posterBase + media.posterPath) + '" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';"><div class="mf-rich-cover-empty" style="display:none">' + esc(mediaMark(details.category)) + '</div>';
+        const titleEl = card.querySelector('[data-mf-title]');
+        const releaseEl = card.querySelector('[data-mf-release]');
+        if (titleEl) titleEl.textContent = mediaDisplayTitle(media, details.name || tr('media.generic'));
+        if (releaseEl) releaseEl.textContent = details.name || '';
+        const seasonsEl = card.querySelector('[data-mf-seasons]');
+        if (seasonsEl) seasonsEl.innerHTML = seasonChipsHtml(media, card.classList.contains('compact'));
+        const slot = card.querySelector('.mf-cover-slot');
+        if (slot) {
+            const poster = media && media.posterPath;
+            const current = slot.querySelector('img');
+            if (poster ? !current || current.getAttribute('src') !== posterBase + poster : current) {
+                slot.innerHTML = torrentCoverHtml(media, details.category);
             }
         }
     }
@@ -754,23 +828,41 @@
             const cached = torrentDetailsCache.get(hash);
             applyTorrentIdentity(card, cached);
             if (panel) panel.innerHTML = renderTorrentDetails(cached);
-            return;
+            if (torrentDetailsVersions.get(hash) === overviewVersion) return;
         }
-        if (panel) panel.innerHTML = '<div class="mf-detail-loading">' + esc(tr('torrent.detailsLoading')) + '</div>';
+        if (panel && !torrentDetailsCache.has(hash)) panel.innerHTML = '<div class="mf-detail-loading">' + esc(tr('torrent.detailsLoading')) + '</div>';
+        const version = overviewVersion;
+        let request = torrentDetailsRequests.get(hash);
+        if (!request || request.version !== version) {
+            request = { version:version, promise:api('GET', 'MediaFlow/Admin/torrents/' + encodeURIComponent(hash) + '/details?stamp=' + Date.now()) };
+            torrentDetailsRequests.set(hash, request);
+        }
         try {
-            const details = await api('GET', 'MediaFlow/Admin/torrents/' + encodeURIComponent(hash) + '/details?stamp=' + Date.now());
+            const details = await request.promise;
+            // An older request must not overwrite a newer overview or resurrect
+            // a removed torrent. Update current cards, not detached DOM nodes.
+            if (version !== overviewVersion || !(overview.torrents || []).some(function(t) { return t.hash === hash; })) return;
             torrentDetailsCache.set(hash, details);
-            applyTorrentIdentity(card, details);
-            if (panel) panel.innerHTML = renderTorrentDetails(details);
+            torrentDetailsVersions.set(hash, version);
+            page.querySelectorAll('.mf-rich-card').forEach(function(current) {
+                if (current.dataset.torrentHash !== hash) return;
+                applyTorrentIdentity(current, details);
+                const currentPanel = current.querySelector('[data-mf-details]');
+                if (currentPanel) currentPanel.innerHTML = renderTorrentDetails(details);
+            });
         } catch (err) {
-            if (panel) panel.innerHTML = '<div class="mf-empty">' + esc(tr('torrent.detailsFailed')) + '</div>';
+            if (version === overviewVersion && card.isConnected && panel && !torrentDetailsCache.has(hash)) panel.innerHTML = '<div class="mf-empty">' + esc(tr('torrent.detailsFailed')) + '</div>';
             console.error(err);
+        } finally {
+            if (torrentDetailsRequests.get(hash) === request) torrentDetailsRequests.delete(hash);
         }
     }
 
     function hydrateRecentCards() {
         const overviewCards = Array.from(page.querySelectorAll('#mfOverviewTorrents .mf-rich-card')).slice(0, 5);
-        const queueCards = Array.from(page.querySelectorAll('#mfTorrentCards .mf-rich-card')).slice(0, 8);
+        const queueCards = Array.from(page.querySelectorAll('#mfTorrentCards .mf-rich-card')).filter(function(card, index) {
+            return index < 8 || torrentDetailsCache.has(card.dataset.torrentHash);
+        });
         const grouped = new Map();
 
         overviewCards.concat(queueCards).forEach(function(card) {
@@ -921,9 +1013,7 @@
         renderHealth();
 
         const torrents = (overview.torrents || []).slice(0, 5);
-        page.querySelector('#mfOverviewTorrents').innerHTML = torrents.length
-            ? torrents.map(function(x) { return torrentCard(x, true); }).join('')
-            : '<div class="mf-empty">' + esc(tr('torrent.none')) + '</div>';
+        renderTorrentCards(page.querySelector('#mfOverviewTorrents'), torrents, true, 'torrent.none');
 
         const history = (overview.history || []).slice(0, 8);
         page.querySelector('#mfOverviewHistory').innerHTML = history.length
@@ -945,9 +1035,7 @@
             const filterOk = filter === 'all' || displayStatus === filter;
             return searchOk && filterOk;
         });
-        page.querySelector('#mfTorrentCards').innerHTML = rows.length
-            ? rows.map(function(x) { return torrentCard(x, false); }).join('')
-            : '<div class="mf-empty">' + esc(tr('empty.search')) + '</div>';
+        renderTorrentCards(page.querySelector('#mfTorrentCards'), rows, false, 'empty.search');
         if (rows.length) setTimeout(hydrateRecentCards, 0);
     }
 
@@ -1119,14 +1207,24 @@
         const savedUiState = preserveUiState ? captureRefreshUiState() : null;
         if (showLoading) Dashboard.showLoadingMsg();
         try {
-            overview = await api('GET', 'MediaFlow/Admin/overview?stamp=' + Date.now());
-            torrentDetailsCache.clear();
+            const request = ++overviewRequest;
+            const updated = await api('GET', 'MediaFlow/Admin/overview?stamp=' + Date.now());
+            if (request !== overviewRequest) return;
+            overview = updated;
+            overviewVersion++;
+            const hashes = new Set((overview.torrents || []).map(function(t) { return t.hash; }));
+            torrentDetailsCache.forEach(function(_, hash) {
+                if (!hashes.has(hash)) {
+                    torrentDetailsCache.delete(hash);
+                    torrentDetailsVersions.delete(hash);
+                }
+            });
             renderOverview();
             if (savedUiState) await restoreRefreshUiState(savedUiState);
         } catch (e) {
             console.error(e);
             if (!silent) {
-                toast(tr('error.mediaflowLoad', {message:(e.statusText || e.message || e)}));
+                toast(tr('error.mediaflowLoad', {message:e.message || String(e)}));
             }
         } finally {
             if (showLoading) Dashboard.hideLoadingMsg();
@@ -1275,13 +1373,7 @@
             }
         } catch (err) {
             console.error(err);
-            let message = err && (err.statusText || err.message) ? (err.statusText || err.message) : String(err);
-            if (err && err.responseText) {
-                try {
-                    const parsed = JSON.parse(err.responseText);
-                    if (parsed.message) message = parsed.message;
-                } catch (_) { }
-            }
+            const message = await apiErrorMessage(err);
             toast(tr('error.operation', {message:message}));
         } finally {
             Dashboard.hideLoadingMsg();
@@ -1361,7 +1453,7 @@
         }
     });
 
-    console.info('MediaFlow UI v0.1.22 auto-refresh script loaded');
+    console.info('MediaFlow UI auto-refresh script loaded');
     queueMicrotask(showMediaFlowPage);
 })();
 </script>
