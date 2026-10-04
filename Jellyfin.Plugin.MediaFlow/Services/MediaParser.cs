@@ -58,7 +58,7 @@ public sealed partial class MediaParser
 
         // For episodes, everything after the episode marker is frequently the episode title,
         // not the series title (e.g. Show.S01E01.Pilot.1080p). Prefer only the prefix.
-        var fileTitleSource = result.Kind == MediaKind.Episode ? ExtractSeriesTitlePrefix(fileBase) : fileBase;
+        var fileTitleSource = result.Kind == MediaKind.Episode ? ExtractSeriesTitlePrefix(fileBase, true) : fileBase;
         if (!LooksLikeEpisodeNumberOnly(fileTitleSource))
         {
             AddTitle(result, fileTitleSource, 0.95, "filename");
@@ -219,18 +219,22 @@ public sealed partial class MediaParser
 
     private static string CleanTitle(string raw)
     {
-        var original = Path.GetFileNameWithoutExtension(raw);
+        // Strip only known media extensions. Treating the last dotted title word
+        // as an extension would turn "The.Last.of.Us" into "The.Last.of".
+        var original = MediaExtensionRegex().Replace(raw, string.Empty);
         var value = BracketNoiseRegex().Replace(original, " ");
-        var hasEpisodeMarker = EpisodeRegex().IsMatch(value)
-            || AltEpisodeRegex().IsMatch(value)
-            || RussianEpisodeRegex().IsMatch(value)
-            || TrailingEpisodeOnlyRegex().IsMatch(value);
-        value = EpisodeRegex().Replace(value, " ");
-        value = AltEpisodeRegex().Replace(value, " ");
-        value = RussianEpisodeRegex().Replace(value, " ");
-        value = TrailingEpisodeOnlyRegex().Replace(value, " ");
+        var marker = FindEpisodeMarker(value);
+        var hasEpisodeMarker = marker is not null;
+        if (marker is not null)
+        {
+            var prefix = value[..marker.Index].Trim(' ', '.', '_', '-');
+            value = prefix.Length >= 2 ? prefix : value.Remove(marker.Index, marker.Length).Insert(marker.Index, " ");
+            value = LeadingReleaseGroupRegex().Replace(value, " ");
+        }
         value = SeasonPackRegex().Replace(value, " ");
         value = StandaloneSeasonRegex().Replace(value, " ");
+        value = TvRoleSuffixRegex().Replace(value, " ");
+        value = AnimeSeasonRegex().Replace(value, " ");
         value = SeparatorRegex().Replace(value, " ");
         value = RemoveLikelyReleaseYears(value, hasEpisodeMarker);
 
@@ -283,29 +287,37 @@ public sealed partial class MediaParser
     }
 
 
-    private static string ExtractSeriesTitlePrefix(string value)
+    private static string ExtractSeriesTitlePrefix(string value, bool allowBareEpisode = false)
     {
-        var matches = new[]
-        {
-            EpisodeRegex().Match(value),
-            AltEpisodeRegex().Match(value),
-            RussianEpisodeRegex().Match(value),
-            TrailingEpisodeOnlyRegex().Match(value)
-        }.Where(x => x.Success).OrderBy(x => x.Index).ToList();
-
-        if (matches.Count == 0)
+        var marker = FindEpisodeMarker(value)
+            ?? (allowBareEpisode ? FirstMarker(value, AnimeBareEpisodeRegex()) : null);
+        if (marker is null)
         {
             return value;
         }
 
-        var prefix = value[..matches[0].Index].Trim(' ', '.', '_', '-');
+        var prefix = LeadingReleaseGroupRegex().Replace(value[..marker.Index], " ").Trim(' ', '.', '_', '-');
         return prefix.Length >= 2 ? prefix : value;
     }
+
+    // Share marker recognition between number extraction and title cleanup. A
+    // new naming rule must not leave season/episode metadata in the TMDb query.
+    private static Match? FindEpisodeMarker(string value)
+        => FindNumberedEpisodeMarker(value) ?? FindEpisodeOnlyMarker(value);
+
+    private static Match? FindNumberedEpisodeMarker(string value)
+        => FirstMarker(value, EpisodeRegex(), AltEpisodeRegex(), RussianEpisodeRegex(), AnimeEpisodeRegex());
+
+    private static Match? FindEpisodeOnlyMarker(string value)
+        => FirstMarker(value, EpisodeOnlyRegex(), TrailingEpisodeOnlyRegex(), AnimeDashedEpisodeRegex());
+
+    private static Match? FirstMarker(string value, params Regex[] patterns)
+        => patterns.Select(x => x.Match(value)).Where(x => x.Success).OrderBy(x => x.Index).FirstOrDefault();
 
     private static bool LooksLikeEpisodeNumberOnly(string value)
     {
         var normalized = NormalizeForCompare(value);
-        return int.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out _);
+        return normalized.Length <= 3 && int.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out _);
     }
 
     private static (int Season, int Episode)? FindEpisodeUsingContext(string fileBase, IReadOnlyList<string> directories, string torrentName)
@@ -323,35 +335,21 @@ public sealed partial class MediaParser
             return (season ?? 1, explicitEpisode.Value);
         }
 
-        // Bare leading numbers are weaker evidence, so only accept them when a season
+        // Bare leading/trailing numbers are weaker evidence, so only accept them when a season
         // is known from the filename/folder/torrent context.
-        var leadingEpisode = FindLeadingEpisodeOnly(fileBase);
-        return season.HasValue && leadingEpisode.HasValue
-            ? (season.Value, leadingEpisode.Value)
+        var contextEpisode = FindLeadingEpisodeOnly(fileBase)
+            ?? (FirstMarker(fileBase, AnimeBareEpisodeRegex()) is { } bare ? ParseInt(bare.Groups["e"].Value) : null);
+        return season.HasValue && contextEpisode.HasValue
+            ? (season.Value, contextEpisode.Value)
             : null;
     }
 
     private static (int Season, int Episode)? FindEpisode(string value)
     {
-        var match = EpisodeRegex().Match(value);
-        if (match.Success)
-        {
-            return (ParseInt(match.Groups["s"].Value), ParseInt(match.Groups["e"].Value));
-        }
-
-        match = AltEpisodeRegex().Match(value);
-        if (match.Success)
-        {
-            return (ParseInt(match.Groups["s"].Value), ParseInt(match.Groups["e"].Value));
-        }
-
-        match = RussianEpisodeRegex().Match(value);
-        if (match.Success)
-        {
-            return (ParseInt(match.Groups["s"].Value), ParseInt(match.Groups["e"].Value));
-        }
-
-        return null;
+        var match = FindNumberedEpisodeMarker(value);
+        return match is not null
+            ? (ParseInt(match.Groups["s"].Value), ParseInt(match.Groups["e"].Value))
+            : null;
     }
 
     private static int? FindSeason(string value)
@@ -361,20 +359,14 @@ public sealed partial class MediaParser
             return null;
         }
 
-        var match = SeasonRegex().Match(value);
-        return match.Success ? ParseInt(match.Groups["s"].Value) : null;
+        var match = FirstMarker(value, SeasonRegex(), AnimeSeasonRegex());
+        return match is not null ? ParseInt(match.Groups["s"].Value) : null;
     }
 
     private static int? FindExplicitEpisodeOnly(string value)
     {
-        var match = EpisodeOnlyRegex().Match(value);
-        if (match.Success)
-        {
-            return ParseInt(match.Groups["e"].Value);
-        }
-
-        match = TrailingEpisodeOnlyRegex().Match(value);
-        return match.Success ? ParseInt(match.Groups["e"].Value) : null;
+        var match = FindEpisodeOnlyMarker(value);
+        return match is not null ? ParseInt(match.Groups["e"].Value) : null;
     }
 
     private static int? FindLeadingEpisodeOnly(string value)
@@ -411,6 +403,27 @@ public sealed partial class MediaParser
     [GeneratedRegex(@"(?i)(?:сезон|season)[ ._:\-]*(?<s>\d{1,2}).{0,30}?(?:серия|episode|ep)[ ._:\-]*(?<e>\d{1,3})(?![ ._:\-]*(?:-|–|—)\d)")]
     private static partial Regex RussianEpisodeRegex();
 
+    [GeneratedRegex(@"(?i)(?<![\p{L}\p{N}])TV[ ._\-]*(?<s>\d{1,2})[ ._]+(?<e>\d{1,3})(?:v\d+)?(?=$|[ ._\-\[])(?!\s*[-–—]\s*\d)")]
+    private static partial Regex AnimeEpisodeRegex();
+
+    // Require an explicit spaced dash, a short number, and only release metadata
+    // afterwards. Years, resolutions and arbitrary trailing title numbers are
+    // not sufficient evidence for an episode.
+    [GeneratedRegex(@"(?i)(?<=\p{L}|\p{N})\s+[-–—]\s+(?<e>\d{1,3})(?:v\d+)?\s*(?:\[[^\]]*\]\s*)*$")]
+    private static partial Regex AnimeDashedEpisodeRegex();
+
+    [GeneratedRegex(@"(?i)(?<=\p{L}|\p{N})\s+(?<e>\d{2,3})(?:v\d+)?\s*(?:\[[^\]]*\]\s*)*$")]
+    private static partial Regex AnimeBareEpisodeRegex();
+
+    [GeneratedRegex(@"(?i)(?<![\p{L}\p{N}])TV[ ._\-]*(?<s>\d{1,2})(?!\d)(?![ ._]*[-–—][ ._]*\d)")]
+    private static partial Regex AnimeSeasonRegex();
+
+    [GeneratedRegex(@"^\s*(?:\[[^\]]+\]\s*)+")]
+    private static partial Regex LeadingReleaseGroupRegex();
+
+    [GeneratedRegex(@"(?i)\.(?:mkv|mp4|avi|mov|m4v|wmv|ts|m2ts|mpg|mpeg|webm)$")]
+    private static partial Regex MediaExtensionRegex();
+
     [GeneratedRegex(@"(?i)(?:^|[^A-Za-z0-9])(?:S|Season[ ._:\-]*|Сезон[ ._:\-]*)(?<s>\d{1,2})(?:[^0-9]|$)")]
     private static partial Regex SeasonRegex();
 
@@ -435,7 +448,7 @@ public sealed partial class MediaParser
     [GeneratedRegex(@"(?<!\d)(?:19\d{2}|20\d{2})(?!\d)")]
     private static partial Regex YearRegex();
 
-    [GeneratedRegex(@"(?i)^\s*(?:S|Season[ ._:\-]*|Сезон[ ._:\-]*)\d{1,2}\s*$")]
+    [GeneratedRegex(@"(?i)^\s*(?:S|Season[ ._:\-]*|Сезон[ ._:\-]*|TV[ ._\-]*)\d{1,2}\s*$")]
     private static partial Regex SeasonOnlyRegex();
 
     [GeneratedRegex(@"[._]+")]
