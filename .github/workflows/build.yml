@@ -45,6 +45,9 @@ jobs:
           cache: npm
           cache-dependency-path: tests/package-lock.json
 
+      - name: Episode mapping integration checks
+        run: dotnet run --project tests/MediaFlow.Mapping.Tests -c Release
+
       - name: Parser regression checks
         run: dotnet run --project tests/MediaFlow.Parser.Tests -c Release
 

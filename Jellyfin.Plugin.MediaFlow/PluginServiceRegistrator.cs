@@ -13,6 +13,9 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<MediaParser>();
         serviceCollection.AddSingleton<TmdbClient>();
         serviceCollection.AddSingleton<MediaResolver>();
+        serviceCollection.AddSingleton<EpisodeMappingStore>();
+        serviceCollection.AddSingleton<EpisodeMetadataService>();
+        serviceCollection.AddSingleton<MappedEpisodeWriter>();
         serviceCollection.AddSingleton<PathMapper>();
         serviceCollection.AddSingleton<HardLinkService>();
         serviceCollection.AddSingleton<ImportStateStore>();

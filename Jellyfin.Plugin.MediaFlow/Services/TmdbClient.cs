@@ -12,14 +12,16 @@ public sealed class TmdbClient
     private readonly ILogger<TmdbClient> _logger;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public TmdbClient(ILogger<TmdbClient> logger)
+    public TmdbClient(ILogger<TmdbClient> logger) : this(logger, new HttpClient
+    {
+        BaseAddress = new Uri("https://api.themoviedb.org/3/"),
+        Timeout = TimeSpan.FromSeconds(20)
+    }) { }
+
+    internal TmdbClient(ILogger<TmdbClient> logger, HttpClient client)
     {
         _logger = logger;
-        _client = new HttpClient
-        {
-            BaseAddress = new Uri("https://api.themoviedb.org/3/"),
-            Timeout = TimeSpan.FromSeconds(20)
-        };
+        _client = client;
         _client.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-MediaFlow/0.1");
     }
 
@@ -92,65 +94,6 @@ public sealed class TmdbClient
         };
     }
 
-    public async Task<TmdbCandidate> GetCandidateByIdAsync(
-        MediaKind kind,
-        int id,
-        int? season,
-        int? episode,
-        CancellationToken cancellationToken)
-    {
-        if (kind is not MediaKind.Movie and not MediaKind.Episode)
-        {
-            throw new ArgumentOutOfRangeException(nameof(kind), "Manual TMDb match requires Movie or Episode kind.");
-        }
-
-        var config = GetConfig();
-        EnsureConfigured(config.TmdbApiKey);
-
-        var endpoint = kind == MediaKind.Episode ? $"tv/{id}" : $"movie/{id}";
-        var url = $"{endpoint}?api_key={Uri.EscapeDataString(config.TmdbApiKey)}&language={Uri.EscapeDataString(config.TmdbLanguage)}";
-        using var response = await _client.GetAsync(url, cancellationToken).ConfigureAwait(false);
-        if (response.StatusCode == HttpStatusCode.NotFound)
-        {
-            throw new InvalidOperationException($"TMDb item #{id} was not found.");
-        }
-
-        response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        var payload = await JsonSerializer.DeserializeAsync<DetailsResponse>(stream, JsonOptions, cancellationToken).ConfigureAwait(false)
-            ?? throw new InvalidOperationException($"TMDb returned an empty response for #{id}.");
-
-        var candidate = new TmdbCandidate
-        {
-            Id = payload.Id,
-            Kind = kind,
-            Title = kind == MediaKind.Episode ? payload.Name ?? string.Empty : payload.Title ?? string.Empty,
-            OriginalTitle = kind == MediaKind.Episode ? payload.OriginalName ?? string.Empty : payload.OriginalTitle ?? string.Empty,
-            Year = ParseYear(kind == MediaKind.Episode ? payload.FirstAirDate : payload.ReleaseDate),
-            Popularity = payload.Popularity,
-            PosterPath = payload.PosterPath
-        };
-
-        if (kind == MediaKind.Episode)
-        {
-            if (!season.HasValue || !episode.HasValue)
-            {
-                throw new InvalidOperationException("Episode review state does not contain season/episode numbers.");
-            }
-
-            var episodeInfo = await GetEpisodeInfoAsync(id, season.Value, episode.Value, cancellationToken).ConfigureAwait(false);
-            candidate.EpisodeExists = episodeInfo.Exists;
-            candidate.EpisodeTitle = episodeInfo.Title;
-            candidate.EpisodeAirYear = episodeInfo.AirYear;
-            if (!episodeInfo.Exists)
-            {
-                throw new InvalidOperationException($"TMDb series #{id} does not contain S{season.Value:00}E{episode.Value:00}.");
-            }
-        }
-
-        return candidate;
-    }
-
     public async Task<TmdbHealthResult> CheckHealthAsync(CancellationToken cancellationToken)
     {
         var config = GetConfig();
@@ -207,12 +150,6 @@ public sealed class TmdbClient
         }
     }
 
-    public async Task<string?> GetEpisodeTitleAsync(int seriesId, int season, int episode, CancellationToken cancellationToken)
-    {
-        var info = await GetEpisodeInfoAsync(seriesId, season, episode, cancellationToken).ConfigureAwait(false);
-        return info.Exists ? info.Title ?? string.Empty : null;
-    }
-
     public async Task<TmdbEpisodeInfo> GetEpisodeInfoAsync(
         int seriesId,
         int season,
@@ -233,6 +170,7 @@ public sealed class TmdbClient
         var exists = false;
         string? bestTitle = null;
         int? airYear = null;
+        EpisodeResponse? metadata = null;
 
         foreach (var language in languages)
         {
@@ -243,27 +181,25 @@ public sealed class TmdbClient
                 return new TmdbEpisodeInfo(false, null, null);
             }
 
-            if (!response.IsSuccessStatusCode)
-            {
-                continue;
-            }
+            response.EnsureSuccessStatusCode();
 
             exists = true;
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             var payload = await JsonSerializer.DeserializeAsync<EpisodeResponse>(stream, JsonOptions, cancellationToken).ConfigureAwait(false);
 
+            metadata ??= payload;
+            if (payload is not null && !string.IsNullOrWhiteSpace(payload.Overview)) metadata = payload;
             airYear ??= ParseYear(payload?.AirDate);
             if (!string.IsNullOrWhiteSpace(payload?.Name))
             {
                 bestTitle ??= payload.Name;
-                break;
+                if (!string.IsNullOrWhiteSpace(metadata?.Overview)) break;
             }
         }
 
-        return new TmdbEpisodeInfo(exists, bestTitle ?? (exists ? string.Empty : null), airYear);
+        return new TmdbEpisodeInfo(exists, bestTitle ?? (exists ? string.Empty : null), airYear,
+            metadata?.Id, metadata?.Overview, metadata?.AirDate, metadata?.StillPath, metadata?.VoteAverage);
     }
-
-    public sealed record TmdbEpisodeInfo(bool Exists, string? Title, int? AirYear);
 
     public sealed record TmdbHealthResult(bool Connected, string Message);
 
@@ -379,6 +315,18 @@ public sealed class TmdbClient
 
     private sealed class EpisodeResponse
     {
+        [JsonPropertyName("id")]
+        public int Id { get; set; }
+
+        [JsonPropertyName("overview")]
+        public string? Overview { get; set; }
+
+        [JsonPropertyName("still_path")]
+        public string? StillPath { get; set; }
+
+        [JsonPropertyName("vote_average")]
+        public double? VoteAverage { get; set; }
+
         [JsonPropertyName("name")]
         public string? Name { get; set; }
 

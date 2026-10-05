@@ -27,6 +27,7 @@ function fixture() {
     };
     window.eval(script.replace('queueMicrotask(showMediaFlowPage);', `strings = ${JSON.stringify(strings)}; window.mfTest = {
         api, apiErrorMessage, refreshOverview, hydrateRecentCards, renderQueue,
+        loadMapping, previewMapping, saveMapping, invalidateMapping, readMappingRequest, renderMappingPreview,
         get cache() { return torrentDetailsCache; }
     };`));
     const titles = () => Array.from(window.document.querySelectorAll('[data-mf-title]')).map(x => x.textContent);
@@ -162,5 +163,87 @@ test('a delayed overview response cannot revert progress from a newer refresh', 
         requests[0]({ torrents:[{ ...torrent, progress:0.1 }], history:[] });
         await old;
         assert.match(f.window.document.querySelector('#mfTorrentCards .mf-progress-row').textContent, /70.0%/);
+    } finally { f.dom.window.close(); }
+});
+
+function mockMappingApi(f) {
+    const requests = [];
+    f.window.ApiClient.ajax = options => {
+        if (!options.url.includes('/episode-mapping')) return Promise.resolve(structuredClone(f.state));
+        return new Promise((resolve, reject) => requests.push({ ...options, resolve, reject }));
+    };
+    f.window.document.querySelector('#mfMappingTorrent').innerHTML = `<option value="${torrent.hash}">TV torrent</option>`;
+    return requests;
+}
+const rule = { releaseSeason:2, librarySeason:2, providerSeason:1, episodeOffset:24 };
+const mappingData = { tmdbId:220542, rules:[rule] };
+const previewData = { title:'Монолог фармацевта', canSave:true, previewToken:'checked', rows:[{
+    file:'TV-2 01.mkv', title:'Mapped episode', imported:false,
+    identity:{ release:{ season:2, episode:1 }, library:{ season:2, episode:1 }, provider:{ season:1, episode:25 } }
+}] };
+
+test('mapping preview shows separate numbering and save requires a checked unchanged draft', async () => {
+    const f = fixture();
+    try {
+        const requests = mockMappingApi(f);
+        const load = f.api.loadMapping(torrent.hash);
+        requests.shift().resolve(mappingData); await load;
+        assert.equal(f.window.document.querySelector('#mfMappingSave').disabled, true);
+        const preview = f.api.previewMapping();
+        const check = requests.shift();
+        assert.deepEqual(JSON.parse(check.data), { tmdbId:220542, seasons:[rule] });
+        check.resolve(previewData); await preview;
+        const table = f.window.document.querySelector('#mfMappingRows').textContent;
+        assert.match(table, /S02E01.*S02E01.*S01E25/);
+        assert.equal(f.window.document.querySelector('#mfMappingSave').disabled, false);
+        const save = f.api.saveMapping();
+        const write = requests.shift();
+        assert.deepEqual(JSON.parse(write.data), { tmdbId:220542, seasons:[rule], previewToken:'checked' });
+        write.resolve({ success:true }); await save;
+        assert.equal(f.window.document.querySelector('#mfMappingSave').disabled, true);
+        assert.equal(requests.length, 0);
+    } finally { f.dom.window.close(); }
+});
+
+test('editing while mapping preview is pending discards the stale reply', async () => {
+    const f = fixture();
+    try {
+        const requests = mockMappingApi(f);
+        const load = f.api.loadMapping(torrent.hash); requests.shift().resolve(mappingData); await load;
+        const preview = f.api.previewMapping(); const pending = requests.shift();
+        const offset = f.window.document.querySelector('[data-mapping-field="episodeOffset"]');
+        offset.value = '12'; offset.dispatchEvent(new f.window.Event('input', { bubbles:true }));
+        pending.resolve(previewData); await preview;
+        assert.equal(f.window.document.querySelector('#mfMappingSave').disabled, true);
+        assert.equal(f.window.document.querySelector('#mfMappingRows').textContent, '');
+        await f.api.saveMapping();
+        assert.equal(requests.length, 0, 'stale preview must not allow a save');
+    } finally { f.dom.window.close(); }
+});
+
+test('switching torrents while loading rules cannot install the previous torrent draft', async () => {
+    const f = fixture();
+    try {
+        const requests = mockMappingApi(f);
+        const load = f.api.loadMapping(torrent.hash); const pending = requests.shift();
+        f.window.document.querySelector('#mfMappingTorrent').dispatchEvent(new f.window.Event('change'));
+        pending.resolve(mappingData); await load;
+        assert.equal(f.window.document.querySelector('#mfMappingEditor').hidden, true);
+        assert.equal(f.window.document.querySelector('#mfMappingSave').disabled, true);
+    } finally { f.dom.window.close(); }
+});
+
+test('TV/Movie filter uses the configured categories', async () => {
+    const f = fixture();
+    try {
+        f.window.__mfConfigCache = { QbittorrentTvCategory:'series', QbittorrentMovieCategory:'films' };
+        f.state.torrents = [{ ...torrent, category:'series' }, { ...torrent, hash:'b'.repeat(40), name:'Movie', category:'films' }];
+        await f.api.refreshOverview(false);
+        f.window.document.querySelector('#mfTorrentKind').value = 'movie'; f.api.renderQueue();
+        assert.equal(f.window.document.querySelectorAll('#mfTorrentCards .mf-rich-card').length, 1);
+        assert.match(f.window.document.querySelector('#mfTorrentCards').textContent, /Movie/);
+        assert.equal(f.window.document.querySelector('#mfTorrentCards [data-action="episode-mapping"]'), null);
+        f.window.document.querySelector('#mfTorrentKind').value = 'tv'; f.api.renderQueue();
+        assert.ok(f.window.document.querySelector('#mfTorrentCards [data-action="episode-mapping"]'));
     } finally { f.dom.window.close(); }
 });

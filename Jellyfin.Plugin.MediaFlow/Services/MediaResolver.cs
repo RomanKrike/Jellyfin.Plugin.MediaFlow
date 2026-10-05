@@ -6,11 +6,15 @@ namespace Jellyfin.Plugin.MediaFlow.Services;
 public sealed class MediaResolver
 {
     private readonly TmdbClient _tmdb;
+    private readonly EpisodeMetadataService _episodes;
+    private readonly EpisodeMappingStore _mappings;
     private readonly ILogger<MediaResolver> _logger;
 
-    public MediaResolver(TmdbClient tmdb, ILogger<MediaResolver> logger)
+    public MediaResolver(TmdbClient tmdb, EpisodeMetadataService episodes, EpisodeMappingStore mappings, ILogger<MediaResolver> logger)
     {
         _tmdb = tmdb;
+        _episodes = episodes;
+        _mappings = mappings;
         _logger = logger;
     }
 
@@ -19,6 +23,19 @@ public sealed class MediaResolver
         if (parsed.Kind == MediaKind.Unknown || parsed.Titles.Count == 0)
         {
             return new ResolutionResult { Reason = "Parser could not extract a usable media title." };
+        }
+
+        var mapping = parsed.Kind == MediaKind.Episode
+            ? await _mappings.GetAsync(parsed.TorrentHash, cancellationToken).ConfigureAwait(false) : null;
+        if (mapping is not null)
+        {
+            var mapped = await _episodes.GetCandidateAsync(parsed, mapping.TmdbId, cancellationToken).ConfigureAwait(false);
+            mapped.Score = 100;
+            mapped.Reasons.Add("numbering=confirmed");
+            return new ResolutionResult { AutoApproved = true, Selected = mapped, Candidates = [mapped],
+                Reason = "Confirmed torrent numbering: library S" + mapped.EpisodeIdentity!.Library.Season
+                    + "E" + mapped.EpisodeIdentity.Library.Episode + " → TMDb S"
+                    + mapped.EpisodeIdentity.Provider.Season + "E" + mapped.EpisodeIdentity.Provider.Episode + "." };
         }
 
         var config = Plugin.Instance?.Configuration ?? throw new InvalidOperationException("MediaFlow configuration is unavailable.");
@@ -56,14 +73,7 @@ public sealed class MediaResolver
 
             if (parsed.Kind == MediaKind.Episode && parsed.Season.HasValue && parsed.Episode.HasValue)
             {
-                var episodeInfo = await _tmdb.GetEpisodeInfoAsync(
-                    candidate.Id,
-                    parsed.Season.Value,
-                    parsed.Episode.Value,
-                    cancellationToken).ConfigureAwait(false);
-                candidate.EpisodeExists = episodeInfo.Exists;
-                candidate.EpisodeTitle = episodeInfo.Title;
-                candidate.EpisodeAirYear = episodeInfo.AirYear;
+                await _episodes.EnrichAsync(candidate, parsed, cancellationToken).ConfigureAwait(false);
             }
 
             candidate.Score = FinalScore(parsed, candidate);

@@ -8,5 +8,6 @@
   <ItemGroup>
     <Compile Include="../../Jellyfin.Plugin.MediaFlow/Services/MediaParser.cs" Link="MediaParser.cs" />
     <Compile Include="../../Jellyfin.Plugin.MediaFlow/Models/MediaModels.cs" Link="MediaModels.cs" />
+    <Compile Include="../../Jellyfin.Plugin.MediaFlow/Models/EpisodeMappingModels.cs" Link="EpisodeMappingModels.cs" />
   </ItemGroup>
 </Project>
