@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.26.0",
+        "changelog": "Add configurable episode mapping and numbering preview (0.1.26)",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow/releases/download/v0.1.26/Jellyfin.Plugin.MediaFlow.v.0.1.26.zip",
+        "checksum": "D3185422C1377E385FB552DEF532D0AA",
+        "timestamp": "2026-10-05T10:08:43Z"
+      },
+      {
         "version": "0.1.25.0",
         "changelog": "Release MediaFlow v0.1.25: anime parsing, HTTP errors and stable dashboard refresh",
         "targetAbi": "10.11.0.0",
