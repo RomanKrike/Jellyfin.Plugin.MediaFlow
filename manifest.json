@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.1.27.0",
+        "changelog": "Fix empty numbering preview and undefined title (0.1.27)",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/RomanKrike/Jellyfin.Plugin.MediaFlow/releases/download/v0.1.27/Jellyfin.Plugin.MediaFlow.v.0.1.27.zip",
+        "checksum": "EEA751C8DEAFFF419AA2FED5811174AE",
+        "timestamp": "2026-10-05T11:06:33Z"
+      },
+      {
         "version": "0.1.26.0",
         "changelog": "Add configurable episode mapping and numbering preview (0.1.26)",
         "targetAbi": "10.11.0.0",
