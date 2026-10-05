@@ -1,24 +1,10 @@
-MediaFlow v0.1.26
+MediaFlow v0.1.27
 
-Torrent-level TV episode numbering with validated preview.
+Fixes the Numbering table showing undefined and no episode rows after validation.
 
-- Separates release, Jellyfin library and TMDb episode identities.
-- Adds per-season rules: release season, library season, TMDb season and episode offset.
-- Adds a Numbering tab and entry points from TV torrents and episode reviews.
-- Adds a TV/Movie filter using configured qBittorrent categories.
-- Validates every eligible file against TMDb before saving and revalidates the plan on save.
-- Rejects stale previews, duplicate library/provider episodes and destination conflicts.
-- Preserves imported files and prevents changing their series or numbering.
-- Stores torrent rules separately and snapshots episode identities in imported state.
-- Uses one metadata path for background imports, cached identities and manual approval.
-- Writes protected local episode NFO and season metadata for mapped numbering.
-- Downloads the mapped episode thumbnail locally; image/network failures remain visible.
-- Preserves foreign NFO files and source torrent data.
-- Includes parser, mapping/API integration and asynchronous UI regression checks in CI.
+- Defines explicit JSON field names for mapping previews, rules, requests and nested episode identities.
+- Keeps the API contract stable regardless of Jellyfin serialization naming policy.
+- Adds real DTO serialization and browser-request binding regression checks under default, camelCase and snake_case policies.
+- Existing mapping files and rules remain compatible; no import migration is required.
 
-Update Jellyfin, restart it, and reload MediaFlow with Ctrl+F5.
-For a release season 2 mapped to TMDb season 1 episodes 25–48:
-Numbering → select torrent → TMDb ID → release 2 / Jellyfin 2 / TMDb 1 / offset +24
-→ Validate mapping → Save and reanalyse.
-
-Episode Groups, absolute-number conversion and migration of imported files are planned separately.
+Update the plugin, restart Jellyfin, reload MediaFlow with Ctrl+F5, and validate the mapping again before saving.
