@@ -21,6 +21,9 @@ public sealed class MediaFlowAdminController : ControllerBase
     private const string TorrentIdentityPrefix = "__mediaflow_torrent_identity:";
     private readonly QbittorrentClient _qbittorrent;
     private readonly TmdbClient _tmdb;
+    private readonly EpisodeMetadataService _episodes;
+    private readonly EpisodeMappingStore _mappings;
+    private readonly MappedEpisodeWriter _metadataWriter;
     private readonly HardLinkService _hardLinks;
     private readonly ImportStateStore _state;
     private readonly MediaParser _parser;
@@ -31,6 +34,9 @@ public sealed class MediaFlowAdminController : ControllerBase
     public MediaFlowAdminController(
         QbittorrentClient qbittorrent,
         TmdbClient tmdb,
+        EpisodeMetadataService episodes,
+        EpisodeMappingStore mappings,
+        MappedEpisodeWriter metadataWriter,
         HardLinkService hardLinks,
         ImportStateStore state,
         MediaParser parser,
@@ -40,6 +46,9 @@ public sealed class MediaFlowAdminController : ControllerBase
     {
         _qbittorrent = qbittorrent;
         _tmdb = tmdb;
+        _episodes = episodes;
+        _mappings = mappings;
+        _metadataWriter = metadataWriter;
         _hardLinks = hardLinks;
         _state = state;
         _parser = parser;
@@ -94,6 +103,7 @@ public sealed class MediaFlowAdminController : ControllerBase
                 kind = x.Value.Kind?.ToString(),
                 season = x.Value.Season,
                 episode = x.Value.Episode,
+                episodeIdentity = x.Value.EpisodeIdentity,
                 reviewCandidates = x.Value.ReviewCandidates,
                 updatedAt = x.Value.UpdatedAt
             })
@@ -161,6 +171,7 @@ public sealed class MediaFlowAdminController : ControllerBase
             {
                 sourcePath = _pathMapper.BuildAndMap(torrent.SavePath, file.Name);
                 parsed = _parser.Parse(sourcePath, torrent.Name, file.Name);
+                parsed.TorrentHash = hash;
                 if (categoryKind != MediaKind.Unknown)
                 {
                     parsed.Kind = categoryKind;
@@ -200,6 +211,7 @@ public sealed class MediaFlowAdminController : ControllerBase
                 Size = file.Size,
                 Progress = file.Progress,
                 Priority = file.Priority,
+                EpisodeIdentity = entry?.EpisodeIdentity,
                 Season = entry?.Season ?? parsed?.Season,
                 Episode = entry?.Episode ?? parsed?.Episode,
                 StateStatus = entry?.Status,
@@ -600,16 +612,10 @@ public sealed class MediaFlowAdminController : ControllerBase
                     return BadRequest(new { message = "Episode review state is missing season/episode numbers. Use Retry once to rebuild it." });
                 }
 
-                var episodeInfo = await _tmdb.GetEpisodeInfoAsync(
-                    candidate.Id,
-                    entry.Season.Value,
-                    entry.Episode.Value,
-                    cancellationToken).ConfigureAwait(false);
-
-                candidate.EpisodeExists = episodeInfo.Exists;
-                candidate.EpisodeTitle = episodeInfo.Title;
-                candidate.EpisodeAirYear = episodeInfo.AirYear;
-                if (!episodeInfo.Exists)
+                var parsed = new ParsedMedia { Kind = MediaKind.Episode, TorrentHash = GetTorrentHash(key),
+                    Season = entry.Season, Episode = entry.Episode };
+                await _episodes.EnrichAsync(candidate, parsed, cancellationToken).ConfigureAwait(false);
+                if (candidate.EpisodeExists != true)
                 {
                     continue;
                 }
@@ -628,8 +634,11 @@ public sealed class MediaFlowAdminController : ControllerBase
         [FromBody] MediaFlowReviewApprovalRequest request,
         CancellationToken cancellationToken)
     {
+        if (Plugin.Instance!.Configuration.DryRunMode)
+            return BadRequest(new { message = "Disable dry-run mode before importing files." });
         ArgumentNullException.ThrowIfNull(request);
         ValidateStateKey(request.Key);
+        using var importLease = await _mappings.AcquireImportAsync(GetTorrentHash(request.Key), cancellationToken).ConfigureAwait(false);
         if (request.TmdbId <= 0)
         {
             return BadRequest(new { message = "A valid TMDb id is required." });
@@ -658,22 +667,20 @@ public sealed class MediaFlowAdminController : ControllerBase
             return BadRequest(new { message = "Source file no longer exists: " + entry.SourcePath });
         }
 
-        var candidate = await _tmdb.GetCandidateByIdAsync(
-            entry.Kind.Value,
-            request.TmdbId,
-            entry.Season,
-            entry.Episode,
-            cancellationToken).ConfigureAwait(false);
-
         var parsed = new ParsedMedia
         {
             Kind = entry.Kind.Value,
+            TorrentHash = GetTorrentHash(entry.Key),
             SourcePath = entry.SourcePath,
             Season = entry.Season,
             Episode = entry.Episode
         };
+        var candidate = await _episodes.GetCandidateAsync(parsed, request.TmdbId, cancellationToken).ConfigureAwait(false);
 
         var destination = ImportPlanner.BuildDestination(parsed, candidate);
+        if (System.IO.File.Exists(destination) && !_hardLinks.IsSameFile(entry.SourcePath, destination))
+            return Conflict(new { message = "Destination belongs to another file: " + destination });
+        await _metadataWriter.WriteAsync(destination, candidate, cancellationToken).ConfigureAwait(false);
         _hardLinks.Create(entry.SourcePath, destination);
 
         await _state.SetAsync(new ImportStateEntry
@@ -682,10 +689,11 @@ public sealed class MediaFlowAdminController : ControllerBase
             Status = "Imported",
             SourcePath = entry.SourcePath,
             DestinationPath = destination,
+            EpisodeIdentity = candidate.EpisodeIdentity,
             TmdbId = candidate.Id,
             Kind = entry.Kind,
-            Season = entry.Season,
-            Episode = entry.Episode,
+            Season = candidate.EpisodeIdentity?.Library.Season ?? entry.Season,
+            Episode = candidate.EpisodeIdentity?.Library.Episode ?? entry.Episode,
             MediaTitle = candidate.Title,
             MediaYear = candidate.Year,
             PosterPath = candidate.PosterPath,

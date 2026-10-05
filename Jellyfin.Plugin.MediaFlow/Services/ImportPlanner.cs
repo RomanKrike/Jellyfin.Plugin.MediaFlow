@@ -25,9 +25,10 @@ public static partial class ImportPlanner
         }
 
         var showFolder = $"{title} ({year}) [tmdbid-{candidate.Id}]";
-        var seasonFolder = $"Season {parsed.Season.Value:00}";
+        var library = candidate.EpisodeIdentity?.Library ?? new EpisodeNumber(parsed.Season.Value, parsed.Episode.Value);
+        var seasonFolder = $"Season {library.Season:00}";
         var episodeTitle = string.IsNullOrWhiteSpace(candidate.EpisodeTitle) ? string.Empty : " - " + SafeName(candidate.EpisodeTitle);
-        var episodeFile = $"{title} ({year}) - S{parsed.Season.Value:00}E{parsed.Episode.Value:00}{episodeTitle}{extension}";
+        var episodeFile = $"{title} ({year}) - S{library.Season:00}E{library.Episode:00}{episodeTitle}{extension}";
         return SafeUnderRoot(config.ShowsRoot, Path.Combine(config.ShowsRoot, showFolder, seasonFolder, episodeFile));
     }
 

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <Compile Include="../../Jellyfin.Plugin.MediaFlow/Models/MediaModels.cs" Link="MediaModels.cs" />
+    <Compile Include="../../Jellyfin.Plugin.MediaFlow/Models/EpisodeMappingModels.cs" Link="EpisodeMappingModels.cs" />
+    <Compile Include="../../Jellyfin.Plugin.MediaFlow/Configuration/PluginConfiguration.cs" Link="PluginConfiguration.cs" />
+    <Compile Include="../../Jellyfin.Plugin.MediaFlow/Services/EpisodeMapper.cs" Link="EpisodeMapper.cs" />
+    <Compile Include="../../Jellyfin.Plugin.MediaFlow/Services/EpisodeMappingStore.cs" Link="EpisodeMappingStore.cs" />
+    <Compile Include="../../Jellyfin.Plugin.MediaFlow/Services/EpisodeMetadataService.cs" Link="EpisodeMetadataService.cs" />
+    <Compile Include="../../Jellyfin.Plugin.MediaFlow/Services/TmdbClient.cs" Link="TmdbClient.cs" />
+    <Compile Include="../../Jellyfin.Plugin.MediaFlow/Services/MappedEpisodeWriter.cs" Link="MappedEpisodeWriter.cs" />
+    <Compile Include="../../Jellyfin.Plugin.MediaFlow/Services/ImportPlanner.cs" Link="ImportPlanner.cs" />
+    <Compile Include="../../Jellyfin.Plugin.MediaFlow/Services/MediaParser.cs" Link="MediaParser.cs" />
+    <Compile Include="../../Jellyfin.Plugin.MediaFlow/Services/HardLinkService.cs" Link="HardLinkService.cs" />
+    <Compile Include="../../Jellyfin.Plugin.MediaFlow/Services/MediaResolver.cs" Link="MediaResolver.cs" />
+    <Compile Include="../../Jellyfin.Plugin.MediaFlow/Services/TitleSimilarity.cs" Link="TitleSimilarity.cs" />
+    <Compile Include="../../Jellyfin.Plugin.MediaFlow/Controllers/EpisodeMappingController.cs" Link="EpisodeMappingController.cs" />
+    <Compile Include="../../Jellyfin.Plugin.MediaFlow/Models/QbittorrentModels.cs" Link="QbittorrentModels.cs" />
+    <Compile Include="../../Jellyfin.Plugin.MediaFlow/Services/PathMapper.cs" Link="PathMapper.cs" />
+    <Compile Include="../../Jellyfin.Plugin.MediaFlow/Services/ImportStateStore.cs" Link="ImportStateStore.cs" />
+  </ItemGroup>
+</Project>

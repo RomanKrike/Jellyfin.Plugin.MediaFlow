@@ -4,7 +4,7 @@ MediaFlow is a Jellyfin server plugin that automates the path from **qBittorrent
 
 It works at the **individual file level**, so completed episodes can be imported without waiting for an entire season pack to finish.
 
-> Current development target: **MediaFlow 0.1.24 · Jellyfin 10.11.11 · .NET 9**
+> Current development target: **MediaFlow 0.1.26 · Jellyfin 10.11.11 · .NET 9**
 
 ## What MediaFlow does
 
@@ -434,3 +434,27 @@ The integration uses qBittorrent WebAPI v2 with cookie authentication and automa
 MediaFlow sends matching `Origin` and `Referer` headers required by qBittorrent WebAPI security checks, supports the qBittorrent 5.x torrent/file response fields, and uses batched `filePrio` requests for episode priorities.
 
 API-key authentication is intentionally not used for the 5.1.x target; qBittorrent introduced API-key authentication in later releases.
+
+## Episode numbering (0.1.26)
+
+Use **Numbering / Нумерация** or the Numbering button on a TV torrent/review entry.
+The TV/Movie filter on the Torrents tab follows your configured qBittorrent categories.
+
+1. Select the TV torrent and verify its TMDb series ID.
+2. Add a rule for every release season. For example: release season **2**, Jellyfin season **2**, TMDb season **1**, episode offset **+24**.
+3. Choose **Validate mapping**. The table shows release, Jellyfin and TMDb episode numbers, the fetched title and any conflicts.
+4. Choose **Save and reanalyse** after every row is valid. Pending review/failed/ignored entries are reset; the worker processes them when enabled and dry-run is off.
+
+`TV-2 01` then uses metadata from TMDb `S01E25`, while its hardlink stays in `Season 02` with `S02E01` in the filename.
+For non-native library numbering MediaFlow writes an episode NFO with locked metadata and the actual TMDb episode ID,
+a season NFO if absent, and a local episode thumbnail if TMDb provides one. Image download errors fail the import visibly
+and can be retried. Existing NFOs not owned by MediaFlow are not overwritten.
+
+Rules are scoped to a torrent hash and selected series and persist in `episode-mappings.json` in the plugin data directory.
+The imported state stores release/library/provider identities and the rule revision. Preview does not write files or rules.
+Changing the identity/numbering of imported episodes is rejected; existing files are not migrated or renamed.
+Duplicate library/provider episodes and occupied destinations prevent saving. Uncovered release seasons require an explicit rule.
+The normal pipeline remains unchanged for torrents without a saved mapping. No series-specific IDs or automatic date-gap heuristics are used.
+
+TMDb Episode Groups, absolute-number conversion, range mappings and migration of previously imported episodes are not included in this version.
+After updating, restart Jellyfin and reload the plugin page with Ctrl+F5.

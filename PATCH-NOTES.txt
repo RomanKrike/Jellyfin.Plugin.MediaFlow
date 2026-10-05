@@ -1,24 +1,24 @@
-MediaFlow v0.1.25
+MediaFlow v0.1.26
 
-Anime filename parsing, actionable HTTP errors and stable dashboard refresh.
+Torrent-level TV episode numbering with validated preview.
 
-Changes:
-- Recognizes TV-1 03/05, TV 1 05 and TV-2 12 anime episode names.
-- Supports [SubsPlease]/[EMBER] names with spaced - 05 and episode revisions.
-- Uses shared episode markers for title cleanup and season/episode extraction.
-- Accepts bare trailing episode numbers only with known season context.
-- Preserves dotted titles and numeric series titles such as 1923.
-- Uses the same parser for imports, sequential priorities and legacy review recovery.
-- Displays backend HTTP messages instead of [object Response].
-- Keeps TMDb titles, seasons, loaded posters and expanded file panels while polling.
-- Refreshes cached metadata without resetting cards to torrent names.
-- Deduplicates detail requests and ignores obsolete overview/detail responses.
-- Keeps the last display after a failed request; successful responses can update or clear it.
-- Adds 86 parser regression checks and six admin UI tests.
-- Runs regression checks before the release build can publish.
+- Separates release, Jellyfin library and TMDb episode identities.
+- Adds per-season rules: release season, library season, TMDb season and episode offset.
+- Adds a Numbering tab and entry points from TV torrents and episode reviews.
+- Adds a TV/Movie filter using configured qBittorrent categories.
+- Validates every eligible file against TMDb before saving and revalidates the plan on save.
+- Rejects stale previews, duplicate library/provider episodes and destination conflicts.
+- Preserves imported files and prevents changing their series or numbering.
+- Stores torrent rules separately and snapshots episode identities in imported state.
+- Uses one metadata path for background imports, cached identities and manual approval.
+- Writes protected local episode NFO and season metadata for mapped numbering.
+- Downloads the mapped episode thumbnail locally; image/network failures remain visible.
+- Preserves foreign NFO files and source torrent data.
+- Includes parser, mapping/API integration and asynchronous UI regression checks in CI.
 
-Absolute anime episode numbers are not mapped to different TMDb seasons.
-Ambiguous episode ranges are not treated as a single anime episode.
+Update Jellyfin, restart it, and reload MediaFlow with Ctrl+F5.
+For a release season 2 mapped to TMDb season 1 episodes 25–48:
+Numbering → select torrent → TMDb ID → release 2 / Jellyfin 2 / TMDb 1 / offset +24
+→ Validate mapping → Save and reanalyse.
 
-After updating, restart Jellyfin and reload the MediaFlow page with Ctrl+F5.
-Use Retry analysis / Reprocess for anime files previously waiting for review.
+Episode Groups, absolute-number conversion and migration of imported files are planned separately.

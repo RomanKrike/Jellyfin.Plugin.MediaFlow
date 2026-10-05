@@ -15,6 +15,8 @@ public sealed record YearSignal(int Value, double Weight, string Source);
 
 public sealed class ParsedMedia
 {
+    public string? TorrentHash { get; set; }
+
     public MediaKind Kind { get; set; }
 
     public string TorrentName { get; set; } = string.Empty;
@@ -49,6 +51,10 @@ public sealed class TmdbCandidate
     public string? PosterPath { get; set; }
 
     public HashSet<string> Aliases { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public EpisodeIdentity? EpisodeIdentity { get; set; }
+
+    public TmdbEpisodeInfo? EpisodeMetadata { get; set; }
 
     public bool? EpisodeExists { get; set; }
 
@@ -122,6 +128,8 @@ public sealed class ReviewCandidateSnapshot
 
 public sealed class ImportStateEntry
 {
+    public EpisodeIdentity? EpisodeIdentity { get; set; }
+
     public string Key { get; set; } = string.Empty;
 
     public string Status { get; set; } = string.Empty;

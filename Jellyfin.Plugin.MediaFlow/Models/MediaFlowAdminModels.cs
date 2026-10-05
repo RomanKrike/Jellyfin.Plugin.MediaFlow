@@ -63,6 +63,9 @@ public sealed class MediaFlowReviewApprovalRequest
 
 public sealed class MediaFlowTorrentFileRow
 {
+    [JsonPropertyName("episodeIdentity")]
+    public EpisodeIdentity? EpisodeIdentity { get; init; }
+
     [JsonPropertyName("index")]
     public int Index { get; init; }
 

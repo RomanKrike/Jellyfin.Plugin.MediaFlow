@@ -14,7 +14,9 @@ public sealed class MediaFlowWorker : BackgroundService
     private readonly QbittorrentClient _qbittorrent;
     private readonly MediaParser _parser;
     private readonly MediaResolver _resolver;
-    private readonly TmdbClient _tmdb;
+    private readonly EpisodeMetadataService _episodes;
+    private readonly EpisodeMappingStore _mappings;
+    private readonly MappedEpisodeWriter _metadataWriter;
     private readonly PathMapper _pathMapper;
     private readonly HardLinkService _hardLinks;
     private readonly ImportStateStore _state;
@@ -27,7 +29,9 @@ public sealed class MediaFlowWorker : BackgroundService
         QbittorrentClient qbittorrent,
         MediaParser parser,
         MediaResolver resolver,
-        TmdbClient tmdb,
+        EpisodeMetadataService episodes,
+        EpisodeMappingStore mappings,
+        MappedEpisodeWriter metadataWriter,
         PathMapper pathMapper,
         HardLinkService hardLinks,
         ImportStateStore state,
@@ -38,7 +42,9 @@ public sealed class MediaFlowWorker : BackgroundService
         _qbittorrent = qbittorrent;
         _parser = parser;
         _resolver = resolver;
-        _tmdb = tmdb;
+        _episodes = episodes;
+        _mappings = mappings;
+        _metadataWriter = metadataWriter;
         _pathMapper = pathMapper;
         _hardLinks = hardLinks;
         _state = state;
@@ -111,6 +117,7 @@ public sealed class MediaFlowWorker : BackgroundService
                 continue;
             }
 
+            using var importLease = await _mappings.AcquireImportAsync(torrent.Hash, cancellationToken).ConfigureAwait(false);
             var files = await _qbittorrent.GetFilesAsync(torrent.Hash, cancellationToken).ConfigureAwait(false);
 
             // Identify the torrent before the first media file finishes downloading.
@@ -160,16 +167,14 @@ public sealed class MediaFlowWorker : BackgroundService
                     }
 
                     var parsed = _parser.Parse(sourcePath, torrent.Name, file.Name);
+                    parsed.TorrentHash = torrent.Hash;
                     ApplyCategoryKind(parsed, categoryKind);
 
                     ResolutionResult resolution;
                     if (CanReuseTorrentIdentity(torrentIdentity, parsed))
                     {
-                        var candidate = await _tmdb.GetCandidateByIdAsync(
-                            parsed.Kind,
-                            torrentIdentity!.TmdbId!.Value,
-                            parsed.Season,
-                            parsed.Episode,
+                        var candidate = await _episodes.GetCandidateAsync(
+                            parsed, torrentIdentity!.TmdbId!.Value,
                             cancellationToken).ConfigureAwait(false);
                         candidate.Score = 100;
                         candidate.Reasons.Add("torrentIdentity=cached");
@@ -220,6 +225,9 @@ public sealed class MediaFlowWorker : BackgroundService
                     }
 
                     var destination = ImportPlanner.BuildDestination(parsed, resolution.Selected);
+                    if (File.Exists(destination) && !_hardLinks.IsSameFile(sourcePath, destination))
+                        throw new IOException("Destination belongs to another file: " + destination);
+                    await _metadataWriter.WriteAsync(destination, resolution.Selected, cancellationToken).ConfigureAwait(false);
                     _hardLinks.Create(sourcePath, destination);
                     importedAny = true;
                     await _state.SetAsync(new ImportStateEntry
@@ -228,10 +236,11 @@ public sealed class MediaFlowWorker : BackgroundService
                         Status = "Imported",
                         SourcePath = sourcePath,
                         DestinationPath = destination,
+                        EpisodeIdentity = resolution.Selected.EpisodeIdentity,
                         TmdbId = resolution.Selected.Id,
                         Kind = parsed.Kind,
-                        Season = parsed.Season,
-                        Episode = parsed.Episode,
+                        Season = resolution.Selected.EpisodeIdentity?.Library.Season ?? parsed.Season,
+                        Episode = resolution.Selected.EpisodeIdentity?.Library.Episode ?? parsed.Episode,
                         MediaTitle = resolution.Selected.Title,
                         MediaYear = resolution.Selected.Year,
                         PosterPath = resolution.Selected.PosterPath,
@@ -241,7 +250,7 @@ public sealed class MediaFlowWorker : BackgroundService
                     _logger.LogInformation("Imported {Source} -> {Destination} (TMDb {TmdbId}, score {Score:F1})", sourcePath, destination, resolution.Selected.Id, resolution.Selected.Score);
                     await _activityLog.AddAsync("Information", "Importer", "Imported to Jellyfin: " + destination + " (TMDb #" + resolution.Selected.Id + ")", cancellationToken, torrent.Hash, torrent.Name, file.Name).ConfigureAwait(false);
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
+                catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
                 {
                     await _state.SetAsync(new ImportStateEntry
                     {
@@ -342,6 +351,7 @@ public sealed class MediaFlowWorker : BackgroundService
                 }
 
                 var parsed = _parser.Parse(sourcePath, torrent.Name, file.Name);
+                parsed.TorrentHash = torrent.Hash;
                 ApplyCategoryKind(parsed, categoryKind);
                 var resolution = await _resolver.ResolveAsync(parsed, cancellationToken).ConfigureAwait(false);
 
@@ -362,7 +372,7 @@ public sealed class MediaFlowWorker : BackgroundService
                     top,
                     destination);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
                 _logger.LogError(ex, "MediaFlow DRY RUN failed for {Torrent}/{File}", torrent.Name, file.Name);
             }
@@ -426,6 +436,7 @@ public sealed class MediaFlowWorker : BackgroundService
         {
             var sourcePath = _pathMapper.BuildAndMap(torrent.SavePath, representative.Name);
             var parsed = _parser.Parse(sourcePath, torrent.Name, representative.Name);
+            parsed.TorrentHash = torrent.Hash;
             ApplyCategoryKind(parsed, categoryKind);
             if (parsed.Kind == MediaKind.Unknown || parsed.Titles.Count == 0)
             {
@@ -469,7 +480,7 @@ public sealed class MediaFlowWorker : BackgroundService
                 resolution.Reason,
                 cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             var failed = new ImportStateEntry
             {

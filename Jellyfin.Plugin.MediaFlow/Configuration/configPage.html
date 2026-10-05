@@ -219,6 +219,7 @@
                 <button class="mf-tab active" type="button" data-tab="overview" data-i18n="tabs.overview"></button>
                 <button class="mf-tab" type="button" data-tab="queue"><span data-i18n="tabs.torrents"></span> <span id="mfTabTorrentCount" class="mf-tab-count">0</span></button>
                 <button class="mf-tab" type="button" data-tab="review"><span data-i18n="tabs.review"></span> <span id="mfTabReviewCount" class="mf-tab-count">0</span></button>
+                <button class="mf-tab" type="button" data-tab="mapping" data-i18n="mapping.tab"></button>
                 <button class="mf-tab" type="button" data-tab="history" data-i18n="tabs.history"></button>
                 <button class="mf-tab" type="button" data-tab="logs" data-i18n="tabs.logs"></button>
                 <button class="mf-tab" type="button" data-tab="settings" data-i18n="tabs.settings"></button>
@@ -248,6 +249,7 @@
                 <div class="mf-toolbar">
                     <div class="mf-toolbar-left">
                         <input id="mfTorrentSearch" class="mf-search" type="text" data-i18n-placeholder="search.torrents" is="emby-input" />
+                        <select id="mfTorrentKind" class="mf-select"><option value="all" data-i18n="mapping.allMedia"></option><option value="tv">TV</option><option value="movie">Movie</option></select>
                         <select id="mfTorrentFilter" class="mf-select">
                             <option value="all" data-i18n="filter.allStatuses"></option>
                             <option value="Downloading" data-i18n="status.downloading"></option>
@@ -269,6 +271,32 @@
                     <div class="mf-secondary" data-i18n="review.subtitle"></div>
                 </div>
                 <div id="mfReviewCards" class="mf-review-list"></div>
+            </section>
+
+            <section id="mfPane-mapping" class="mf-pane">
+                <div class="mf-section-title"><h3 data-i18n="mapping.title"></h3></div>
+                <p class="mf-secondary" data-i18n="mapping.help"></p>
+                <div class="mf-toolbar">
+                    <select id="mfMappingTorrent" class="mf-select" aria-label="TV torrent"></select>
+                    <button id="mfMappingLoad" type="button" class="mf-mini-btn" data-i18n="mapping.load"></button>
+                </div>
+                <div id="mfMappingEditor" hidden>
+                    <div class="inputContainer"><label for="mfMappingTmdb">TMDb ID</label> <input id="mfMappingTmdb" type="number" min="1" class="mf-search" /></div>
+                    <div class="mf-table-wrap"><table class="mf-table">
+                        <thead><tr><th data-i18n="mapping.releaseSeason"></th><th data-i18n="mapping.librarySeason"></th><th data-i18n="mapping.providerSeason"></th><th data-i18n="mapping.offset"></th><th></th></tr></thead>
+                        <tbody id="mfMappingRules"></tbody>
+                    </table></div>
+                    <div class="mf-toolbar" style="margin-top:1rem">
+                        <button id="mfMappingAdd" type="button" class="mf-mini-btn" data-i18n="mapping.add"></button>
+                        <button id="mfMappingPreview" type="button" class="mf-mini-btn" data-i18n="mapping.preview"></button>
+                        <button id="mfMappingSave" type="button" class="mf-mini-btn primary" disabled data-i18n="mapping.save"></button>
+                    </div>
+                </div>
+                <p id="mfMappingMessage" class="mf-secondary" role="status" aria-live="polite"></p>
+                <div class="mf-table-wrap"><table class="mf-table">
+                    <thead><tr><th data-i18n="mapping.file"></th><th data-i18n="mapping.release"></th><th>Jellyfin</th><th>TMDb</th><th data-i18n="mapping.episodeTitle"></th><th data-i18n="table.status"></th></tr></thead>
+                    <tbody id="mfMappingRows"></tbody>
+                </table></div>
             </section>
 
             <section id="mfPane-history" class="mf-pane">
@@ -379,6 +407,11 @@
     const torrentDetailsCache = new Map();
     const torrentDetailsVersions = new Map();
     const torrentDetailsRequests = new Map();
+    let mappingHash = null;
+    let mappingPreview = null;
+    let mappingDraft = null;
+    let mappingGeneration = 0;
+    let mappingBusy = false;
     let overviewVersion = 0;
     let overviewRequest = 0;
     let logEntries = [];
@@ -542,6 +575,7 @@
         if (name === 'review') renderReview();
         if (name === 'queue') renderQueue();
         if (name === 'history') renderHistory();
+        if (name === 'mapping') renderMappingTorrents();
         if (name === 'logs') loadLogs(false);
     }
 
@@ -606,6 +640,7 @@
             ? ''
             : '<span class="mf-badge ' + statusClass(displayStatus) + '">' + esc(statusLabel(displayStatus)) + '</span>';
         const actions = '<div class="mf-rich-actions">'
+            + (!compact && isTvTorrent(t) ? '<button type="button" class="mf-mini-btn" data-action="episode-mapping" data-hash="' + esc(t.hash) + '">' + esc(tr('mapping.tab')) + '</button>' : '')
             + (!compact ? '<button type="button" class="mf-mini-btn" data-action="toggle-details" data-hash="' + esc(t.hash) + '">' + esc(tr('common.files')) + '</button>' : '')
             + '<button type="button" class="mf-mini-btn" data-action="reconcile" data-hash="' + esc(t.hash) + '" data-name="' + esc(t.name) + '">' + esc(tr('common.reconcile')) + '</button>'
             + '<button type="button" class="mf-mini-btn primary" data-action="reprocess" data-hash="' + esc(t.hash) + '">' + esc(tr('common.reprocess')) + '</button>'
@@ -721,7 +756,7 @@
     function renderTorrentFileRow(f) {
         const pct = Math.max(0, Math.min(100, Number(f.progress || 0) * 100));
         const episode = f.season != null && f.episode != null
-            ? 'S' + String(f.season).padStart(2, '0') + 'E' + String(f.episode).padStart(2, '0')
+            ? 'S' + String(f.season).padStart(2, '0') + 'E' + String(f.episode).padStart(2, '0') + (f.episodeIdentity && f.episodeIdentity.isMapped ? ' → TMDb ' + episodeNumber(f.episodeIdentity.provider) : '')
             : (pct >= 99.999 ? 'FILE' : 'WAIT');
         let linkText = '—';
         let linkClass = 'warn';
@@ -967,6 +1002,7 @@
                 + '</div>'
                 + '<div class="mf-actions">'
                     + '<button type="button" class="mf-mini-btn" data-action="retry-state" data-key="' + esc(h.key) + '">' + esc(tr('common.retryAnalysis')) + '</button>'
+                    + (h.kind === 'Episode' ? '<button type="button" class="mf-mini-btn" data-action="episode-mapping" data-hash="' + esc(h.key.split(':')[0]) + '">' + esc(tr('mapping.tab')) + '</button>' : '')
                     + '<button type="button" class="mf-mini-btn danger" data-action="review-ignore" data-key="' + esc(h.key) + '">' + esc(tr('common.ignore')) + '</button>'
                 + '</div>'
             + '</div>'
@@ -1021,6 +1057,7 @@
             : '<tr><td colspan="5" class="mf-secondary">' + esc(tr('empty.history')) + '</td></tr>';
 
         renderQueue();
+        renderMappingTorrents();
         renderHistory();
         renderReview();
     }
@@ -1029,14 +1066,129 @@
         if (!overview) return;
         const q = String(page.querySelector('#mfTorrentSearch').value || '').toLowerCase();
         const filter = page.querySelector('#mfTorrentFilter').value || 'all';
+        const kind = page.querySelector('#mfTorrentKind').value || 'all';
         const rows = (overview.torrents || []).filter(function(t) {
             const displayStatus = effectiveTorrentStatus(t);
             const searchOk = !q || [t.name,t.hash,t.category,displayStatus,t.mediaFlowStatus,t.qbState].join(' ').toLowerCase().includes(q);
             const filterOk = filter === 'all' || displayStatus === filter;
-            return searchOk && filterOk;
+            const cfg = window.__mfConfigCache || {};
+            const category = String(t.category || '').toLowerCase();
+            const kindOk = kind === 'all' || category === String(kind === 'tv' ? (cfg.QbittorrentTvCategory || 'tv') : (cfg.QbittorrentMovieCategory || 'movie')).toLowerCase();
+            return searchOk && filterOk && kindOk;
         });
         renderTorrentCards(page.querySelector('#mfTorrentCards'), rows, false, 'empty.search');
         if (rows.length) setTimeout(hydrateRecentCards, 0);
+    }
+
+    function isTvTorrent(t) {
+        const cfg = window.__mfConfigCache || {};
+        return String(t.category || '').toLowerCase() === String(cfg.QbittorrentTvCategory || 'tv').toLowerCase();
+    }
+
+    function renderMappingTorrents() {
+        const select = page.querySelector('#mfMappingTorrent');
+        const previous = select.value;
+        const torrents = (overview && overview.torrents || []).filter(isTvTorrent);
+        const html = '<option value="">' + esc(tr('mapping.selectTorrent')) + '</option>' + torrents.map(function(t) {
+            return '<option value="' + esc(t.hash) + '">' + esc(t.name) + '</option>';
+        }).join('');
+        if (select.innerHTML !== html) { select.innerHTML = html; select.value = previous; }
+    }
+
+    function invalidateMapping() {
+        mappingGeneration++;
+        mappingPreview = null;
+        mappingDraft = null;
+        page.querySelector('#mfMappingSave').disabled = true;
+        page.querySelector('#mfMappingRows').innerHTML = '';
+        page.querySelector('#mfMappingMessage').textContent = tr('mapping.previewRequired');
+    }
+
+    function mappingRuleHtml(rule) {
+        return '<tr>' + ['releaseSeason','librarySeason','providerSeason','episodeOffset'].map(function(field) {
+            const label = field === 'episodeOffset' ? tr('mapping.offset') : tr('mapping.' + field);
+            return '<td><input type="number" data-mapping-field="' + field + '" aria-label="' + esc(label) + '" min="' + (field === 'episodeOffset' ? '-10000' : '0') + '" max="' + (field === 'episodeOffset' ? '10000' : '999') + '" value="' + esc(rule[field]) + '" style="width:6rem" /></td>';
+        }).join('') + '<td><button type="button" class="mf-mini-btn" data-action="mapping-remove">' + esc(tr('mapping.remove')) + '</button></td></tr>';
+    }
+
+    function readMappingRequest() {
+        const tmdbId = Number(page.querySelector('#mfMappingTmdb').value);
+        const seasons = Array.from(page.querySelectorAll('#mfMappingRules tr')).map(function(row) {
+            const rule = {};
+            row.querySelectorAll('[data-mapping-field]').forEach(function(input) {
+                if (input.value === '' || !input.checkValidity()) throw new Error(tr('mapping.invalid'));
+                rule[input.dataset.mappingField] = Number(input.value);
+            });
+            return rule;
+        });
+        if (!Number.isInteger(tmdbId) || tmdbId <= 0 || !seasons.length) throw new Error(tr('mapping.invalid'));
+        return { tmdbId:tmdbId, seasons:seasons };
+    }
+
+    async function loadMapping(hash) {
+        if (!hash) return;
+        invalidateMapping();
+        const generation = mappingGeneration;
+        mappingHash = null;
+        page.querySelector('#mfMappingEditor').hidden = true;
+        const data = await api('GET', 'MediaFlow/Admin/torrents/' + encodeURIComponent(hash) + '/episode-mapping');
+        if (generation !== mappingGeneration || page.querySelector('#mfMappingTorrent').value !== hash) return;
+        mappingHash = hash;
+        page.querySelector('#mfMappingTmdb').value = data.tmdbId || '';
+        page.querySelector('#mfMappingRules').innerHTML = (data.rules || []).map(mappingRuleHtml).join('');
+        page.querySelector('#mfMappingEditor').hidden = false;
+        page.querySelector('#mfMappingMessage').textContent = tr('mapping.previewRequired');
+    }
+
+    function episodeNumber(number) {
+        return number ? 'S' + String(number.season).padStart(2, '0') + 'E' + String(number.episode).padStart(2, '0') : '—';
+    }
+
+    function renderMappingPreview(preview) {
+        page.querySelector('#mfMappingRows').innerHTML = (preview.rows || []).map(function(row) {
+            const identity = row.identity || {};
+            return '<tr><td title="' + esc(row.destination || '') + '">' + esc(row.file) + '</td>'
+                + '<td>' + esc(episodeNumber(identity.release)) + '</td><td>' + esc(episodeNumber(identity.library)) + '</td>'
+                + '<td>' + esc(episodeNumber(identity.provider)) + '</td><td>' + esc(row.title || '—') + '</td>'
+                + '<td>' + esc(row.error || tr(row.imported ? 'mapping.imported' : 'mapping.valid')) + '</td></tr>';
+        }).join('');
+        page.querySelector('#mfMappingMessage').textContent = preview.title + ' · ' + tr(preview.canSave ? 'mapping.ready' : 'mapping.fixErrors');
+    }
+
+    async function previewMapping() {
+        if (!mappingHash || mappingBusy) return;
+        const request = readMappingRequest();
+        const draft = JSON.stringify(request);
+        const hash = mappingHash;
+        const generation = mappingGeneration;
+        mappingBusy = true;
+        page.querySelector('#mfMappingSave').disabled = true;
+        page.querySelector('#mfMappingMessage').textContent = tr('mapping.checking');
+        try {
+            const preview = await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(hash) + '/episode-mapping/preview', request);
+            if (generation !== mappingGeneration || mappingHash !== hash) return;
+            mappingPreview = preview;
+            mappingDraft = draft;
+            renderMappingPreview(preview);
+            page.querySelector('#mfMappingSave').disabled = !preview.canSave;
+        } finally { mappingBusy = false; }
+    }
+
+    async function saveMapping() {
+        if (!mappingHash || mappingBusy || !mappingPreview || !mappingPreview.canSave) return;
+        const request = readMappingRequest();
+        if (JSON.stringify(request) !== mappingDraft) { invalidateMapping(); return; }
+        const hash = mappingHash;
+        request.previewToken = mappingPreview.previewToken;
+        mappingBusy = true;
+        page.querySelector('#mfMappingSave').disabled = true;
+        try {
+            await api('POST', 'MediaFlow/Admin/torrents/' + encodeURIComponent(hash) + '/episode-mapping', request);
+            invalidateMapping();
+            page.querySelector('#mfMappingMessage').textContent = tr('mapping.saved');
+            toast(tr('mapping.saved'));
+            await refreshOverview(false);
+        } finally { mappingBusy = false; }
     }
 
     function renderHistory() {
@@ -1281,6 +1433,17 @@
         if (!action) return;
 
         try {
+            if (action.dataset.action === 'episode-mapping') {
+                setTab('mapping');
+                page.querySelector('#mfMappingTorrent').value = action.dataset.hash;
+                await loadMapping(action.dataset.hash);
+                return;
+            }
+            if (action.dataset.action === 'mapping-remove') {
+                action.closest('tr').remove();
+                invalidateMapping();
+                return;
+            }
             if (action.dataset.action === 'toggle-details') {
                 const card = action.closest('.mf-rich-card');
                 if (!card) return;
@@ -1380,6 +1543,23 @@
         }
     });
 
+    page.querySelector('#mfMappingTorrent').addEventListener('change', function() {
+        invalidateMapping(); mappingHash = null; page.querySelector('#mfMappingEditor').hidden = true;
+    });
+    page.querySelector('#mfMappingEditor').addEventListener('input', invalidateMapping);
+    function mappingAction(fn) { return async function() {
+        try { await fn(); } catch (err) { page.querySelector('#mfMappingMessage').textContent = err.message || String(err); }
+    }; }
+    page.querySelector('#mfMappingLoad').addEventListener('click', mappingAction(function() { return loadMapping(page.querySelector('#mfMappingTorrent').value); }));
+    page.querySelector('#mfMappingPreview').addEventListener('click', mappingAction(previewMapping));
+    page.querySelector('#mfMappingSave').addEventListener('click', mappingAction(saveMapping));
+    page.querySelector('#mfMappingAdd').addEventListener('click', function() {
+        const rows = page.querySelectorAll('#mfMappingRules tr');
+        const season = rows.length ? Number(rows[rows.length - 1].querySelector('[data-mapping-field="releaseSeason"]').value) + 1 : 1;
+        page.querySelector('#mfMappingRules').insertAdjacentHTML('beforeend', mappingRuleHtml({releaseSeason:season,librarySeason:season,providerSeason:season,episodeOffset:0}));
+        invalidateMapping();
+    });
+    page.querySelector('#mfTorrentKind').addEventListener('change', renderQueue);
     page.querySelector('#mfTorrentSearch').addEventListener('input', renderQueue);
     page.querySelector('#mfTorrentFilter').addEventListener('change', renderQueue);
     page.querySelector('#mfHistorySearch').addEventListener('input', renderHistory);
