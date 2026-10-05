@@ -20,6 +20,35 @@ var hash = new string('a', 40);
 var rule = new TorrentEpisodeMapping(220542, [new SeasonMapping(2, 2, 1, 24)], "revision-1");
 try
 {
+    var wirePreview = new EpisodeMappingPreview(hash, "Монолог фармацевта", rule,
+        [new EpisodeMappingRow(0, "TV-2 01.mkv", EpisodeMapper.Map(220542, 2, 1, rule),
+            "Mapped episode", "/TV/Season 02/S02E01.mkv", false, null)], "checked");
+    var wireJson = JsonSerializer.Serialize(wirePreview);
+    foreach (var policy in new JsonNamingPolicy?[] { null, JsonNamingPolicy.CamelCase, JsonNamingPolicy.SnakeCaseLower })
+    {
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = policy };
+        Check(JsonSerializer.Serialize(wirePreview, options) == wireJson, "mapping JSON depends on host naming policy");
+        using var json = JsonDocument.Parse(wireJson);
+        var previewJson = json.RootElement;
+        Check(previewJson.GetProperty("canSave").GetBoolean(), "UI cannot read canSave");
+        Check(previewJson.GetProperty("title").GetString() == "Монолог фармацевта", "UI cannot read title");
+        Check(previewJson.GetProperty("previewToken").GetString() == "checked", "UI cannot read preview token");
+        var rowJson = previewJson.GetProperty("rows")[0];
+        Check(rowJson.GetProperty("file").GetString() == "TV-2 01.mkv", "UI cannot read file");
+        Check(!rowJson.GetProperty("imported").GetBoolean() && rowJson.GetProperty("error").ValueKind == JsonValueKind.Null, "UI cannot read row status");
+        var identityJson = rowJson.GetProperty("identity");
+        Check(identityJson.GetProperty("library").GetProperty("season").GetInt32() == 2, "UI cannot read library season");
+        Check(identityJson.GetProperty("provider").GetProperty("episode").GetInt32() == 25, "UI cannot read provider episode");
+        var wireRequest = JsonSerializer.Deserialize<EpisodeMappingRequest>("""
+            {"tmdbId":220542,"seasons":[{"releaseSeason":2,"librarySeason":2,"providerSeason":1,"episodeOffset":24}],"previewToken":"checked"}
+            """, options)!;
+        Check(wireRequest.TmdbId == 220542 && wireRequest.Seasons.Single() == rule.Seasons.Single()
+            && wireRequest.PreviewToken == "checked", "browser mapping request cannot bind with host naming policy");
+    }
+    var invalidWire = wirePreview with { Rows = [wirePreview.Rows[0] with { Error = "Missing episode" }] };
+    using (var json = JsonDocument.Parse(JsonSerializer.Serialize(invalidWire)))
+        Check(!json.RootElement.GetProperty("canSave").GetBoolean(), "invalid preview must disable UI save");
+
     var native = EpisodeMapper.Map(220542, 1, 3, null);
     Check(native.Library == native.Provider && !native.IsMapped, "native numbering changed");
     for (var episode = 1; episode <= 24; episode++)

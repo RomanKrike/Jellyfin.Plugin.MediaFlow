@@ -1,36 +1,61 @@
+using System.Text.Json.Serialization;
+
 namespace Jellyfin.Plugin.MediaFlow.Models;
 
-public sealed record EpisodeNumber(int Season, int Episode);
+// Explicit JSON names keep the admin contract independent of Jellyfin naming policy.
+public sealed record EpisodeNumber(
+    [property: JsonPropertyName("season")] int Season,
+    [property: JsonPropertyName("episode")] int Episode);
 
 public sealed record EpisodeIdentity(
-    EpisodeNumber Release,
-    EpisodeNumber Library,
-    EpisodeNumber Provider,
-    int SeriesId,
-    string? MappingRevision = null)
+    [property: JsonPropertyName("release")] EpisodeNumber Release,
+    [property: JsonPropertyName("library")] EpisodeNumber Library,
+    [property: JsonPropertyName("provider")] EpisodeNumber Provider,
+    [property: JsonPropertyName("seriesId")] int SeriesId,
+    [property: JsonPropertyName("mappingRevision")] string? MappingRevision = null)
 {
+    [JsonPropertyName("isMapped")]
     public bool IsMapped => Library != Provider;
 }
 
-public sealed record SeasonMapping(int ReleaseSeason, int LibrarySeason, int ProviderSeason, int EpisodeOffset);
+public sealed record SeasonMapping(
+    [property: JsonPropertyName("releaseSeason")] int ReleaseSeason,
+    [property: JsonPropertyName("librarySeason")] int LibrarySeason,
+    [property: JsonPropertyName("providerSeason")] int ProviderSeason,
+    [property: JsonPropertyName("episodeOffset")] int EpisodeOffset);
 
-public sealed record TorrentEpisodeMapping(int TmdbId, IReadOnlyList<SeasonMapping> Seasons, string Revision = "");
+public sealed record TorrentEpisodeMapping(
+    [property: JsonPropertyName("tmdbId")] int TmdbId,
+    [property: JsonPropertyName("seasons")] IReadOnlyList<SeasonMapping> Seasons,
+    [property: JsonPropertyName("revision")] string Revision = "");
 
 public sealed class EpisodeMappingRequest
 {
+    [JsonPropertyName("tmdbId")]
     public int TmdbId { get; set; }
+    [JsonPropertyName("seasons")]
     public List<SeasonMapping> Seasons { get; set; } = [];
+    [JsonPropertyName("previewToken")]
     public string? PreviewToken { get; set; }
 }
 
 public sealed record EpisodeMappingRow(
-    int Index, string File, EpisodeIdentity? Identity, string? Title,
-    string? Destination, bool Imported, string? Error);
+    [property: JsonPropertyName("index")] int Index,
+    [property: JsonPropertyName("file")] string File,
+    [property: JsonPropertyName("identity")] EpisodeIdentity? Identity,
+    [property: JsonPropertyName("title")] string? Title,
+    [property: JsonPropertyName("destination")] string? Destination,
+    [property: JsonPropertyName("imported")] bool Imported,
+    [property: JsonPropertyName("error")] string? Error);
 
 public sealed record EpisodeMappingPreview(
-    string Hash, string Title, TorrentEpisodeMapping Mapping,
-    IReadOnlyList<EpisodeMappingRow> Rows, string PreviewToken)
+    [property: JsonPropertyName("hash")] string Hash,
+    [property: JsonPropertyName("title")] string Title,
+    [property: JsonPropertyName("mapping")] TorrentEpisodeMapping Mapping,
+    [property: JsonPropertyName("rows")] IReadOnlyList<EpisodeMappingRow> Rows,
+    [property: JsonPropertyName("previewToken")] string PreviewToken)
 {
+    [JsonPropertyName("canSave")]
     public bool CanSave => Rows.Count > 0 && Rows.All(x => x.Error is null);
 }
 
